@@ -56,6 +56,12 @@ python app.py
 
 Open: `http://127.0.0.1:5000/login`
 
+Or from repo root (recommended on Windows):
+
+```powershell
+.\run_dashboard_web.bat
+```
+
 ### 5) Run backend workers (optional but recommended)
 
 From repo root:
