@@ -310,28 +310,150 @@ CTF_REGISTER_PAGE = CTF_STYLE + """
 </div></div>
 """
 
-TECHNIQUE_DEFENSES = {
-    "T1059": [
-        "Restrict script interpreters using application control policies.",
-        "Enable command-line auditing and alert on suspicious parent-child process chains.",
-    ],
-    "T1003": [
-        "Enable LSASS protection and disable debug privileges for non-admin accounts.",
-        "Monitor credential dumping tools and memory access anomalies.",
-    ],
-    "T1047": [
-        "Harden WMI permissions and monitor remote WMI execution patterns.",
-        "Segment admin networks and enforce just-in-time access.",
-    ],
-    "T1021": [
-        "Require MFA for remote access and disable legacy authentication.",
-        "Alert on abnormal remote service creation and lateral movement paths.",
-    ],
-    "T1053": [
-        "Monitor task scheduler creations and modifications.",
-        "Restrict who can create persistent scheduled tasks.",
-    ],
+TECHNIQUE_KNOWLEDGE = {
+    "T1059": {
+        "name": "Command and Scripting Interpreter",
+        "telemetry": "Process creation logs, command-line arguments, parent-child process lineage.",
+        "detection": "Flag unusual interpreter parents and encoded/obfuscated script execution.",
+        "response": "Terminate malicious script trees and block unsigned interpreter usage where feasible.",
+    },
+    "T1003": {
+        "name": "OS Credential Dumping",
+        "telemetry": "EDR memory access, LSASS access alerts, privileged token usage.",
+        "detection": "Detect non-standard LSASS memory reads and known dump-tool behavior.",
+        "response": "Isolate impacted host, rotate exposed credentials, and enforce LSASS protection.",
+    },
+    "T1021": {
+        "name": "Remote Services",
+        "telemetry": "Remote logon events, RDP/SMB/WMI auth logs, east-west flow metadata.",
+        "detection": "Identify abnormal admin logon spread and service creation from pivot hosts.",
+        "response": "Cut lateral channels, revoke active sessions, and restrict remote admin paths.",
+    },
+    "T1041": {
+        "name": "Exfiltration Over C2 Channel",
+        "telemetry": "Egress network logs, DNS/proxy logs, data transfer volume baselines.",
+        "detection": "Alert on unusual outbound destinations, timing, and transfer spikes.",
+        "response": "Block destination, isolate exfil source, and preserve transfer evidence.",
+    },
+    "T1047": {
+        "name": "Windows Management Instrumentation",
+        "telemetry": "WMI event logs, remote process creation, admin account activity.",
+        "detection": "Look for WMI execution from atypical hosts/accounts and suspicious parent commands.",
+        "response": "Disable abusive WMI channels, rotate compromised admin accounts, tighten WMI ACLs.",
+    },
+    "T1053": {
+        "name": "Scheduled Task/Job",
+        "telemetry": "Task scheduler create/update logs and startup persistence deltas.",
+        "detection": "Alert on hidden/new recurring tasks with uncommon command payloads.",
+        "response": "Remove malicious tasks, block re-creation vectors, and validate startup integrity.",
+    },
+    "T1078": {
+        "name": "Valid Accounts",
+        "telemetry": "Identity provider sign-ins, MFA events, session token usage.",
+        "detection": "Detect unusual geolocation, impossible travel, and atypical admin behavior.",
+        "response": "Revoke sessions/tokens, force credential reset, enforce conditional access.",
+    },
+    "T1078.004": {
+        "name": "Valid Accounts: Cloud Accounts",
+        "telemetry": "Cloud control plane auth logs, API key usage, IAM changes.",
+        "detection": "Detect sign-ins from rare ASNs/devices and high-risk API activity.",
+        "response": "Disable compromised cloud principals and rotate key material immediately.",
+    },
+    "T1098": {
+        "name": "Account Manipulation",
+        "telemetry": "IAM policy change logs, role assignments, mailbox/app permissions.",
+        "detection": "Flag privilege grants and persistence changes outside approved windows.",
+        "response": "Rollback unauthorized IAM changes and review all derived access paths.",
+    },
+    "T1110": {
+        "name": "Brute Force",
+        "telemetry": "Authentication failure bursts, lockout events, source IP patterns.",
+        "detection": "Correlate repeated failures across accounts and protocol endpoints.",
+        "response": "Apply rate limits/lockouts, block offending sources, increase MFA enforcement.",
+    },
+    "T1190": {
+        "name": "Exploit Public-Facing Application",
+        "telemetry": "WAF logs, HTTP error spikes, unusual request payload patterns.",
+        "detection": "Detect exploit-like request sequences and post-exploit command execution.",
+        "response": "Block exploit path, patch vulnerable service, rotate service credentials.",
+    },
+    "T1486": {
+        "name": "Data Encrypted for Impact",
+        "telemetry": "Mass file rename/write events, shadow copy deletion, backup tamper logs.",
+        "detection": "Alert on rapid encryption-like IO behavior and ransomware precursor commands.",
+        "response": "Immediate host isolation, kill encryption process, protect/air-gap backup channels.",
+    },
+    "T1566": {
+        "name": "Phishing",
+        "telemetry": "Email security logs, URL click telemetry, attachment detonation results.",
+        "detection": "Detect suspicious sender/domain patterns and malicious payload execution chain.",
+        "response": "Quarantine campaign emails, block indicators, and reset compromised identities.",
+    },
+    "T1567": {
+        "name": "Exfiltration Over Web Service",
+        "telemetry": "Proxy/SaaS logs, cloud upload events, abnormal external sharing.",
+        "detection": "Detect high-volume uploads to rare external services and abnormal sharing changes.",
+        "response": "Revoke sharing links/tokens, block destination service, and preserve transfer evidence.",
+    },
 }
+
+ATTACK_PLAYBOOKS = [
+    {
+        "id": "ransomware_chain",
+        "name": "Ransomware Progression",
+        "required": ["T1059", "T1003", "T1021", "T1486"],
+        "min_match": 2,
+        "severity": "CRITICAL",
+        "why": "Execution + credential access + lateral movement + encryption strongly indicate ransomware staging.",
+        "telemetry": "EDR process lineage, LSASS access events, remote admin logons, mass file write anomalies.",
+        "detection": "Correlate script execution -> credential dumping -> remote service spread -> encryption behavior.",
+        "response": "Isolate impacted hosts, disable compromised admin accounts, block lateral protocols, protect backups.",
+    },
+    {
+        "id": "cloud_account_takeover",
+        "name": "Cloud Account Takeover",
+        "required": ["T1078.004", "T1098", "T1567"],
+        "min_match": 2,
+        "severity": "HIGH",
+        "why": "Compromised cloud identity plus permission changes and outbound web transfer indicates takeover + theft risk.",
+        "telemetry": "Cloud sign-ins, IAM policy drift, token issuance, SaaS upload/sharing logs.",
+        "detection": "Detect risky sign-in -> IAM manipulation -> unusual data movement sequence.",
+        "response": "Revoke sessions/keys, rollback IAM changes, enforce conditional access, investigate shared resources.",
+    },
+    {
+        "id": "phishing_to_identity_abuse",
+        "name": "Phishing-Led Identity Compromise",
+        "required": ["T1566", "T1078", "T1098"],
+        "min_match": 2,
+        "severity": "HIGH",
+        "why": "Phishing followed by account abuse and persistence changes reflects active identity compromise.",
+        "telemetry": "Email gateway events, sign-in telemetry, MFA change logs, account modification logs.",
+        "detection": "Chain suspicious email interaction with high-risk sign-ins and identity configuration changes.",
+        "response": "Contain mailbox/session abuse, reset credentials, remove unauthorized account persistence changes.",
+    },
+    {
+        "id": "external_app_exploit",
+        "name": "Public-Facing App Exploitation",
+        "required": ["T1190", "T1059", "T1041"],
+        "min_match": 2,
+        "severity": "HIGH",
+        "why": "Service exploit followed by command execution and outbound transfer suggests active post-exploit intrusion.",
+        "telemetry": "WAF and web server logs, process creation on app hosts, outbound egress logs.",
+        "detection": "Correlate exploit signatures with new shell execution and abnormal destination traffic.",
+        "response": "Block exploit vectors, patch affected service, isolate app host, rotate service credentials/tokens.",
+    },
+    {
+        "id": "remote_admin_abuse",
+        "name": "Remote Administration Abuse",
+        "required": ["T1047", "T1021", "T1078"],
+        "min_match": 2,
+        "severity": "MEDIUM",
+        "why": "Remote management execution plus lateral access patterns indicate operator-driven intrusion movement.",
+        "telemetry": "WMI activity, privileged auth events, remote service creation, endpoint command logs.",
+        "detection": "Identify unusual management account behavior across hosts and remote execution chains.",
+        "response": "Restrict admin channels, rotate privileged credentials, enforce just-in-time and MFA controls.",
+    },
+]
 
 
 def get_ctf_state(user):
@@ -816,9 +938,15 @@ def api_defense():
 
     try:
         graph = fetch_graph_data(agent_id=agent_id, target=target)
-        techniques = [t["id"] for t in graph.get("techniques", [])]
-        recommendations = generate_defense_recommendations(techniques)
-        return jsonify({"techniques": techniques, "recommendations": recommendations})
+        analysis = generate_defense_recommendations(graph)
+        return jsonify(
+            {
+                "techniques": analysis.get("observed_techniques", []),
+                "risk_level": analysis.get("risk_level", "LOW"),
+                "matched_scenarios": analysis.get("matched_scenarios", []),
+                "recommendations": analysis.get("recommendations", []),
+            }
+        )
     except Exception as exc:
         return jsonify({"error": str(exc), "recommendations": []}), 500
 
@@ -840,6 +968,8 @@ def api_chat():
     top_path_target = top_path.get("target", "unknown")
     top_path_len = top_path.get("length", 0)
     top_path_risk = top_path.get("risk_score", 0)
+    defense_analysis = generate_defense_recommendations(graph)
+    top_scenario = (defense_analysis.get("matched_scenarios") or [{}])[0]
 
     ai_reply = tutor_response(
         "soc",
@@ -851,6 +981,9 @@ def api_chat():
             f"Top attack path target: {top_path_target}\n"
             f"Top attack path depth: {top_path_len}\n"
             f"Top attack path risk: {top_path_risk}\n"
+            f"Likely scenario: {top_scenario.get('name', 'none')}\n"
+            f"Scenario confidence: {int(top_scenario.get('confidence', 0) * 100)}\n"
+            f"Scenario response focus: {top_scenario.get('response', 'N/A')}\n"
             f"Selected agent: {agent_id or 'all'}\n"
             f"Selected target: {target or 'all'}\n"
             f"Goal: explain and guide mitigation decisions."
@@ -869,6 +1002,7 @@ def api_chat():
             "risk_level": risk,
             "top_techniques": top_techniques,
             "top_attack_path": top_path,
+            "matched_scenarios": defense_analysis.get("matched_scenarios", []),
         }
     )
 
@@ -1482,26 +1616,154 @@ def build_summary(graph, techniques, target_risk=None):
     }
 
 
-def generate_defense_recommendations(technique_ids):
+def _normalize_tid(value):
+    tid = (value or "").strip().upper()
+    if re.fullmatch(r"T\d{4}(?:\.\d{3})?", tid):
+        return tid
+    return None
+
+
+def _base_tid(value):
+    tid = _normalize_tid(value)
+    if not tid:
+        return None
+    return tid.split(".", 1)[0]
+
+
+def _technique_match(observed, required):
+    req = _normalize_tid(required)
+    if not req:
+        return False
+    req_base = _base_tid(req)
+    for obs in observed:
+        if obs == req or _base_tid(obs) == req_base:
+            return True
+    return False
+
+
+def _collect_observed_techniques(graph):
+    observed = []
+    seen = set()
+
+    for item in graph.get("techniques", []):
+        tid = _normalize_tid(item.get("id"))
+        if tid and tid not in seen:
+            seen.add(tid)
+            observed.append(tid)
+
+    for path in graph.get("attack_paths", []):
+        for raw_tid in path.get("techniques", []):
+            tid = _normalize_tid(raw_tid)
+            if tid and tid not in seen:
+                seen.add(tid)
+                observed.append(tid)
+    return observed
+
+
+def _match_playbooks(observed, attack_paths):
+    matched = []
+    for playbook in ATTACK_PLAYBOOKS:
+        required = playbook.get("required", [])
+        matched_required = [tid for tid in required if _technique_match(observed, tid)]
+        min_match = playbook.get("min_match", len(required))
+        if len(matched_required) < min_match:
+            continue
+
+        coverage = (len(matched_required) / len(required)) if required else 0
+        path_bonus = 0.0
+        for path in attack_paths:
+            ptech = [_normalize_tid(t) for t in path.get("techniques", [])]
+            ptech = [t for t in ptech if t]
+            chain_hits = sum(1 for tid in required if _technique_match(ptech, tid))
+            if chain_hits >= min_match:
+                path_bonus = 0.15
+                break
+
+        confidence = min(0.99, 0.55 + (coverage * 0.35) + path_bonus)
+        matched.append(
+            {
+                "id": playbook["id"],
+                "name": playbook["name"],
+                "severity": playbook["severity"],
+                "required": required,
+                "matched": matched_required,
+                "coverage": round(coverage, 2),
+                "confidence": round(confidence, 2),
+                "why": playbook["why"],
+                "telemetry": playbook["telemetry"],
+                "detection": playbook["detection"],
+                "response": playbook["response"],
+            }
+        )
+
+    matched.sort(key=lambda x: (x["confidence"], x["coverage"]), reverse=True)
+    return matched
+
+
+def _risk_priority_weight(level):
+    if level == "CRITICAL":
+        return 3
+    if level == "ELEVATED":
+        return 2
+    return 1
+
+
+def generate_defense_recommendations(graph):
+    observed = _collect_observed_techniques(graph)
+    attack_paths = graph.get("attack_paths", [])
+    summary = graph.get("summary", {})
+    risk_level = summary.get("risk_level", "LOW")
+
+    matched_scenarios = _match_playbooks(observed, attack_paths)
     recommendations = []
-    for tid in technique_ids:
-        recommendations.extend(TECHNIQUE_DEFENSES.get(tid, []))
+
+    if matched_scenarios:
+        for scenario in matched_scenarios[:3]:
+            confidence_pct = int(scenario["confidence"] * 100)
+            recommendations.append(
+                f"[{scenario['severity']}] {scenario['name']} likely ({confidence_pct}% confidence) from techniques: {', '.join(scenario['matched'])}."
+            )
+            recommendations.append(f"Why this fits: {scenario['why']}")
+            recommendations.append(f"Telemetry priority: {scenario['telemetry']}")
+            recommendations.append(f"Detection priority: {scenario['detection']}")
+            recommendations.append(f"Immediate response: {scenario['response']}")
+
+    covered_bases = {_base_tid(tid) for s in matched_scenarios for tid in s["matched"]}
+    for tid in observed[:6]:
+        kb = TECHNIQUE_KNOWLEDGE.get(tid) or TECHNIQUE_KNOWLEDGE.get(_base_tid(tid))
+        if not kb:
+            continue
+        if _base_tid(tid) in covered_bases:
+            continue
+        recommendations.append(
+            f"[Technique {tid}] {kb['name']} | telemetry: {kb['telemetry']} | detect: {kb['detection']} | respond: {kb['response']}"
+        )
 
     if not recommendations:
         recommendations = [
-            "Enforce least privilege across all agent hosts.",
-            "Enable endpoint detection for command execution and credential access.",
-            "Segment critical systems and restrict east-west traffic.",
-            "Apply patching and hardening baselines for exposed services.",
+            "No strong ATT&CK chain match yet. Start with sequence-based detections before broad containment.",
+            "Collect baseline telemetry first: process lineage, auth events, and egress traffic.",
+            "Correlate by identity + host + target over time windows to reduce false positives.",
+            "Contain only high-confidence entities; keep evidence intact for root-cause analysis.",
         ]
 
-    seen = set()
     unique = []
-    for item in recommendations:
-        if item not in seen:
-            seen.add(item)
-            unique.append(item)
-    return unique[:8]
+    seen = set()
+    for line in recommendations:
+        if line in seen:
+            continue
+        seen.add(line)
+        unique.append(line)
+
+    unique.sort(key=lambda line: 0 if line.startswith("[CRITICAL]") else (1 if line.startswith("[HIGH]") else 2))
+
+    return {
+        "risk_level": risk_level,
+        "risk_weight": _risk_priority_weight(risk_level),
+        "observed_techniques": observed,
+        "matched_scenarios": matched_scenarios,
+        "recommendations": unique[:18],
+    }
 
 
 def empty_graph():
