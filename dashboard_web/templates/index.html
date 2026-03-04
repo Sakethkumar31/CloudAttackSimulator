@@ -1,0 +1,571 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Attack Path Simulator - SOC Dashboard</title>
+  <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+  <style>
+    :root {
+      --bg: #070b10;
+      --panel: #0e1622;
+      --line: #1f3145;
+      --text: #d3faff;
+      --muted: #90a9c1;
+      --cyan: #00ffcc;
+      --red: #ff3b3b;
+      --amber: #f7b955;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, #0f1c2d, var(--bg) 40%);
+      color: var(--text);
+      font-family: Consolas, monospace;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(14, 22, 34, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+    .title-wrap { display: flex; flex-direction: column; gap: 3px; }
+    .title { color: var(--cyan); font-size: 18px; font-weight: 700; }
+    .subtitle { color: var(--muted); font-size: 11px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+    select, button {
+      background: #0b131e;
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+    }
+    button { cursor: pointer; }
+    .logout {
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+      text-decoration: none;
+      padding: 8px 10px;
+    }
+    .learn-link {
+      color: var(--amber);
+      border: 1px solid var(--amber);
+      text-decoration: none;
+      padding: 8px 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      min-height: calc(100vh - 70px);
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .kpi {
+      border: 1px solid var(--line);
+      padding: 8px;
+      background: #0b131e;
+    }
+    .kpi .v { font-size: 18px; color: var(--cyan); }
+    .kpi .l { color: var(--muted); font-size: 12px; }
+    .risk {
+      margin: 10px 0;
+      border: 1px solid var(--line);
+      padding: 8px;
+      background: #0b131e;
+    }
+    .bar {
+      width: 100%;
+      height: 12px;
+      border: 1px solid #31506c;
+      background: #0a111a;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #2bd4ff, #f7b955, #ff3b3b);
+      transition: width .4s ease;
+    }
+    .critical {
+      color: #ffd8d8;
+      background: rgba(255, 59, 59, 0.2);
+      border: 1px solid #8f2a2a;
+      padding: 6px 8px;
+      margin-top: 8px;
+      animation: blink 1s infinite;
+      display: none;
+    }
+    @keyframes blink { 50% { opacity: .35; } }
+    .mitre h3 { margin: 10px 0 8px; font-size: 14px; color: var(--amber); }
+    .mitre-list {
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #0b131e;
+      padding: 8px;
+      margin: 0;
+      list-style: none;
+    }
+    .mitre-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #1a2b3d;
+      font-size: 12px;
+    }
+    .mitre-list li:last-child { border-bottom: 0; }
+    .defense-list {
+      max-height: 170px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #0b131e;
+      padding: 8px 14px;
+      margin: 8px 0 0;
+      font-size: 12px;
+    }
+    .path-list {
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #0b131e;
+      padding: 8px;
+      margin: 0;
+      list-style: none;
+      font-size: 12px;
+    }
+    .path-list li {
+      border-bottom: 1px solid #1a2b3d;
+      padding: 6px 0;
+    }
+    .path-list li:last-child { border-bottom: 0; }
+    .chat-panel {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      background: #0b131e;
+      padding: 8px;
+    }
+    .chat-log {
+      height: 130px;
+      overflow: auto;
+      border: 1px solid #1a2b3d;
+      padding: 8px;
+      font-size: 12px;
+      margin-bottom: 8px;
+      white-space: pre-line;
+    }
+    .chat-row {
+      display: flex;
+      gap: 6px;
+    }
+    .chat-row input {
+      flex: 1;
+      background: #09101a;
+      border: 1px solid #1f3145;
+      color: var(--text);
+      padding: 6px;
+    }
+    #graph-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      min-height: 70vh;
+      position: relative;
+    }
+    #graph { width: 100%; height: 100%; min-height: 70vh; }
+    .empty, .notice {
+      margin: 10px;
+      padding: 8px;
+      border: 1px solid #7a3535;
+      background: rgba(122, 53, 53, 0.15);
+      color: #ffb3b3;
+      font-size: 12px;
+    }
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+      #graph { min-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title-wrap">
+      <div class="title">Cloud Attack Path Simulator - SOC Dashboard</div>
+      <div class="subtitle">Attack paths, agent chains, MITRE mapping, and guided mitigations in one view.</div>
+    </div>
+    <div class="controls">
+      <select id="agentFilter"><option value="">All Agents</option></select>
+      <select id="targetFilter"><option value="">All Targets</option></select>
+      <select id="tutorMode">
+        <option value="beginner">Tutor: Beginner</option>
+        <option value="intermediate" selected>Tutor: Intermediate</option>
+        <option value="expert">Tutor: Expert</option>
+      </select>
+      <button id="refreshBtn">Refresh</button>
+      <button id="autoBtn">Auto: ON (5s)</button>
+      <a class="learn-link" href="/learn/maze">Attack Path Maze</a>
+      <a class="logout" href="/logout">Logout</a>
+    </div>
+  </div>
+
+  {% if db_error %}
+  <div class="notice">{{ db_error }}</div>
+  {% endif %}
+
+  <div class="grid">
+    <aside class="panel">
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kpiAgents">0</div><div class="l">Agents</div></div>
+        <div class="kpi"><div class="v" id="kpiFacts">0</div><div class="l">Facts</div></div>
+        <div class="kpi"><div class="v" id="kpiChains">0</div><div class="l">NEXT Chains</div></div>
+        <div class="kpi"><div class="v" id="kpiTech">0</div><div class="l">MITRE Techniques</div></div>
+      </div>
+
+      <div class="risk">
+        <div>Risk Level: <strong id="riskLevel">LOW</strong> (<span id="riskScore">0</span>/100)</div>
+        <div class="bar"><span id="riskFill"></span></div>
+        <div id="criticalBanner" class="critical">CRITICAL ACTIVITY DETECTED</div>
+      </div>
+
+      <div class="mitre">
+        <h3>MITRE Activity</h3>
+        <ul id="mitreList" class="mitre-list"></ul>
+      </div>
+
+      <div class="mitre">
+        <h3>Likely Real-World Attacks</h3>
+        <ul id="scenarioList" class="path-list"></ul>
+      </div>
+
+      <div class="mitre">
+        <h3>Defense Suggestions</h3>
+        <ul id="defenseList" class="defense-list"></ul>
+      </div>
+
+      <div class="mitre">
+        <h3>Attack Paths</h3>
+        <ul id="pathList" class="path-list"></ul>
+      </div>
+
+      <div class="chat-panel">
+        <h3 style="margin:0 0 8px;color:#7fe6ff;">SOC Learning Bot</h3>
+        <div id="chatLog" class="chat-log">Bot: Ask me about attack risk, path, and mitigations.</div>
+        <div class="chat-row">
+          <input id="chatInput" placeholder="Ask: how to face this attack?">
+          <button id="chatSendBtn">Send</button>
+        </div>
+      </div>
+    </aside>
+
+    <section id="graph-wrap">
+      <div id="graph"></div>
+      <div id="empty" class="empty" style="display:none;">No graph data available for selected filters.</div>
+    </section>
+  </div>
+
+  <script>
+    let cy = null;
+    let autoRefresh = true;
+    let timerId = null;
+    const initialGraph = {{ graph | tojson | safe }};
+
+    const agentFilter = document.getElementById('agentFilter');
+    const targetFilter = document.getElementById('targetFilter');
+    const autoBtn = document.getElementById('autoBtn');
+    const tutorMode = document.getElementById('tutorMode');
+    const defenseList = document.getElementById('defenseList');
+    const scenarioList = document.getElementById('scenarioList');
+    const pathList = document.getElementById('pathList');
+    const chatLog = document.getElementById('chatLog');
+    const chatInput = document.getElementById('chatInput');
+
+    function setOptions(selectEl, values, label) {
+      const current = selectEl.value;
+      selectEl.innerHTML = `<option value="">${label}</option>`;
+      values.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        selectEl.appendChild(opt);
+      });
+      if ([...selectEl.options].some(o => o.value === current)) {
+        selectEl.value = current;
+      }
+    }
+
+    function renderSummary(summary) {
+      document.getElementById('kpiAgents').textContent = summary.agent_count || 0;
+      document.getElementById('kpiFacts').textContent = summary.fact_count || 0;
+      document.getElementById('kpiChains').textContent = summary.chain_count || 0;
+      document.getElementById('kpiTech').textContent = summary.technique_count || 0;
+      document.getElementById('riskLevel').textContent = summary.risk_level || 'LOW';
+      document.getElementById('riskScore').textContent = summary.risk_score || 0;
+      document.getElementById('riskFill').style.width = `${summary.risk_score || 0}%`;
+
+      const critical = document.getElementById('criticalBanner');
+      critical.style.display = (summary.risk_level === 'CRITICAL') ? 'block' : 'none';
+    }
+
+    function renderMitre(techniques) {
+      const list = document.getElementById('mitreList');
+      list.innerHTML = '';
+      if (!techniques || !techniques.length) {
+        list.innerHTML = '<li><span>No MITRE mapping yet</span><span>0</span></li>';
+        return;
+      }
+      techniques.forEach(item => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${item.id}</span><span>${item.count}</span>`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderGraph(graphData) {
+      const hasNodes = graphData && graphData.nodes && graphData.nodes.length > 0;
+      document.getElementById('empty').style.display = hasNodes ? 'none' : 'block';
+
+      if (cy) {
+        cy.destroy();
+        cy = null;
+      }
+
+      if (!hasNodes) {
+        return;
+      }
+
+      cy = cytoscape({
+        container: document.getElementById('graph'),
+        elements: [...graphData.nodes, ...graphData.edges],
+        style: [
+          {
+            selector: 'node[type="agent"]',
+            style: {
+              'background-color': '#00ffcc',
+              'label': 'data(label)',
+              'color': '#001',
+              'font-size': 10,
+              'text-wrap': 'wrap',
+              'text-max-width': 100,
+              'shape': 'round-rectangle',
+              'padding': '6px'
+            }
+          },
+          {
+            selector: 'node[type="fact"]',
+            style: {
+              'background-color': '#ff0055',
+              'label': 'data(label)',
+              'color': '#fff',
+              'font-size': 9,
+              'text-wrap': 'wrap',
+              'text-max-width': 130,
+              'padding': '5px'
+            }
+          },
+          {
+            selector: 'edge[relation="executed"]',
+            style: {
+              'line-color': '#43d9bd',
+              'target-arrow-color': '#43d9bd',
+              'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'width': 2
+            }
+          },
+          {
+            selector: 'edge[relation="next"]',
+            style: {
+              'line-color': '#f7b955',
+              'target-arrow-color': '#f7b955',
+              'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'line-style': 'dashed',
+              'width': 2
+            }
+          }
+        ],
+        layout: {
+          name: 'cose',
+          animate: true,
+          fit: true,
+          padding: 24
+        }
+      });
+
+      cy.on('tap', 'node[type="agent"]', function(evt) {
+        const id = evt.target.id();
+        if (agentFilter.value !== id) {
+          agentFilter.value = id;
+          fetchAndRender();
+        }
+      });
+    }
+
+    function renderDefense(recommendations) {
+      defenseList.innerHTML = '';
+      if (!recommendations || !recommendations.length) {
+        defenseList.innerHTML = '<li>No recommendations yet</li>';
+        return;
+      }
+      recommendations.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        defenseList.appendChild(li);
+      });
+    }
+
+    function renderScenarios(scenarios) {
+      scenarioList.innerHTML = '';
+      if (!scenarios || !scenarios.length) {
+        scenarioList.innerHTML = '<li>No strong attack chain match yet.</li>';
+        return;
+      }
+      scenarios.slice(0, 4).forEach((s, idx) => {
+        const confidence = Math.round((s.confidence || 0) * 100);
+        const matched = (s.matched || []).join(', ') || 'none';
+        const li = document.createElement('li');
+        li.textContent = `#${idx + 1} [${s.severity || 'MEDIUM'}] ${s.name || 'Scenario'} | confidence ${confidence}% | matched ${matched}`;
+        scenarioList.appendChild(li);
+      });
+    }
+
+    function renderAttackPaths(paths, targetRisk) {
+      pathList.innerHTML = '';
+      if (!paths || !paths.length) {
+        pathList.innerHTML = '<li>No attack paths built yet.</li>';
+        return;
+      }
+      paths.slice(0, 5).forEach((p, idx) => {
+        const agents = (p.agents || []).join(', ') || 'unknown';
+        const tech = (p.techniques || []).slice(0, 3).join(' -> ') || 'none';
+        const targetInfo = targetRisk && targetRisk[p.target] ? ` | target risk ${targetRisk[p.target].max_path_risk}` : '';
+        const li = document.createElement('li');
+        li.textContent = `#${idx + 1} ${p.target} | depth ${p.length} | risk ${p.risk_score}${targetInfo} | agent ${agents} | tech ${tech}`;
+        pathList.appendChild(li);
+      });
+    }
+
+    async function fetchDefense() {
+      const params = new URLSearchParams();
+      if (agentFilter.value) params.set('agent', agentFilter.value);
+      if (targetFilter.value) params.set('target', targetFilter.value);
+      const res = await fetch(`/api/defense?${params.toString()}`, { credentials: 'same-origin' });
+      const data = await res.json();
+      renderScenarios(data.matched_scenarios || []);
+      renderDefense(data.recommendations || []);
+    }
+
+    function appendChatLine(line) {
+      chatLog.textContent += `\n${line}`;
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    async function sendChat() {
+      const message = chatInput.value.trim();
+      if (!message) return;
+      appendChatLine(`You: ${message}`);
+      chatInput.value = '';
+
+      const payload = {
+        message,
+        agent: agentFilter.value || null,
+        target: targetFilter.value || null
+      };
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      appendChatLine(`Bot: ${data.reply || 'No response available.'}`);
+    }
+
+    async function fetchAndRender() {
+      const params = new URLSearchParams();
+      if (agentFilter.value) params.set('agent', agentFilter.value);
+      if (targetFilter.value) params.set('target', targetFilter.value);
+
+      const res = await fetch(`/api/graph?${params.toString()}`, { credentials: 'same-origin' });
+      const data = await res.json();
+
+      setOptions(agentFilter, data.filters?.agents || [], 'All Agents');
+      setOptions(targetFilter, data.filters?.targets || [], 'All Targets');
+      renderSummary(data.summary || {});
+      renderMitre(data.techniques || []);
+      renderAttackPaths(data.attack_paths || [], data.target_risk || {});
+      renderGraph(data);
+      await fetchDefense();
+    }
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      timerId = setInterval(fetchAndRender, 5000);
+    }
+
+    function stopAutoRefresh() {
+      if (timerId) clearInterval(timerId);
+      timerId = null;
+    }
+
+    function applyInitialState() {
+      setOptions(agentFilter, initialGraph.filters?.agents || [], 'All Agents');
+      setOptions(targetFilter, initialGraph.filters?.targets || [], 'All Targets');
+      renderSummary(initialGraph.summary || {});
+      renderMitre(initialGraph.techniques || []);
+      renderAttackPaths(initialGraph.attack_paths || [], initialGraph.target_risk || {});
+      renderGraph(initialGraph);
+      fetchDefense();
+      if (autoRefresh) startAutoRefresh();
+    }
+
+    async function loadTutorMode() {
+      const res = await fetch('/api/tutor_mode?module=soc', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (data.mode) tutorMode.value = data.mode;
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', fetchAndRender);
+    agentFilter.addEventListener('change', fetchAndRender);
+    targetFilter.addEventListener('change', fetchAndRender);
+    tutorMode.addEventListener('change', async () => {
+      await fetch('/api/tutor_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ module: 'soc', mode: tutorMode.value })
+      });
+    });
+    document.getElementById('chatSendBtn').addEventListener('click', sendChat);
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendChat();
+    });
+    autoBtn.addEventListener('click', () => {
+      autoRefresh = !autoRefresh;
+      autoBtn.textContent = autoRefresh ? 'Auto: ON (5s)' : 'Auto: OFF';
+      if (autoRefresh) startAutoRefresh(); else stopAutoRefresh();
+    });
+
+    applyInitialState();
+    loadTutorMode();
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+Cloud Attack Path Simulator - Reviewer Demo Script (5 Minutes)
+
+Purpose
+- Show that CALDERA frontend operations/abilities drive visible attack-path updates in the SOC dashboard.
+- Keep explanation simple and practical.
+
+What to open before demo
+1) CALDERA UI: http://localhost:8888
+2) SOC Dashboard: http://127.0.0.1:5000
+3) Keep both tabs side-by-side.
+
+5-Minute Talk Track
+
+0:00 - 0:40 | Intro
+Say:
+"This platform is a Cloud Attack Path Simulator. CALDERA operations generate attack activity, and the dashboard visualizes it as agent-to-fact chains with risk and mitigation guidance."
+
+0:40 - 1:30 | CALDERA Frontend (Agents)
+In CALDERA:
+- Go to Agents.
+- Show one active agent.
+Say:
+"Agents are the execution endpoints. Any operation we run is attached to a specific agent."
+
+1:30 - 2:40 | CALDERA Frontend (Abilities -> Operation)
+In CALDERA:
+- Go to Adversaries/Abilities.
+- Pick a basic adversary (or create one) with a few simple abilities.
+- Create Operation and run it on the selected agent.
+- Open operation links/chain and show status transitions.
+Say:
+"Each executed link contains command, ability, and technique context. Those become graph facts in the dashboard."
+
+2:40 - 3:40 | Dashboard Attack Path View
+In dashboard:
+- Click Refresh (or wait auto-refresh).
+- Point out:
+  - Agents count
+  - Facts count
+  - NEXT chains
+  - MITRE techniques
+  - Attack Paths panel
+Say:
+"We can filter by agent or target and inspect path progression and current risk."
+
+3:40 - 4:30 | Live Change Proof (Create/Delete Agent)
+In CALDERA Agents:
+- Add or activate a different agent OR remove one.
+Back to dashboard:
+- Refresh and show agent list/graph changed.
+Say:
+"Agent lifecycle changes in CALDERA are reconciled into the SOC graph."
+
+4:30 - 5:00 | Maze + CTF Learning Flow
+In dashboard:
+- Open Maze and choose difficulty.
+- Open CTF and ask tutor a level question.
+Say:
+"This gives guided practice: detect, contain, recover, and validate controls."
+
+
+Safe Basic Networking Commands (Ubuntu)
+(Use only in lab/authorized environment)
+
+Ubuntu
+1) whoami
+- Shows current user context.
+
+2) hostname
+- Shows machine identity.
+
+3) ip a
+- Shows network interfaces and IP addresses.
+
+4) ss -tulpen
+- Shows listening ports and active sockets.
+
+5) ping <host>
+- Basic reachability test.
+
+6) nslookup <domain>
+- DNS lookup.
+
+7) traceroute <host>
+- Path to destination.
+
+8) curl -I http://<host>
+- Fetch response headers only.
+
+9) sudo tcpdump -i any -nn -c 50
+- Captures first 50 packets (quick traffic snapshot).
+
+10) journalctl -xe --no-pager | head -n 40
+- Quick system event/log view.
+
+
+Predefined Basic Attack Scenarios (safe, demo language)
+Scenario A: Discovery + Execution
+- Objective: Show initial suspicious command activity.
+- CALDERA action: run simple discovery/command ability.
+- Dashboard expectation: new facts, technique mapping, path grows.
+
+Scenario B: Lateral Movement Simulation
+- Objective: Show chain progression and risk increase.
+- CALDERA action: run remote-service style ability (lab-safe).
+- Dashboard expectation: more NEXT edges and higher risk.
+
+Scenario C: Credential Access Simulation
+- Objective: Show why containment is urgent.
+- CALDERA action: run credential-access themed ability.
+- Dashboard expectation: technique and mitigation recommendations update.
+
+
+What NOT to say (if unsure)
+- Do not claim "real-time socket streaming" unless you verified it.
+- Do not claim "full autonomous remediation".
+- Keep it to: "sync-driven graph updates + guided analyst workflow."
+
+
+Short Q&A safe answers
+Q: Is this production EDR?
+A: "No, this is a simulation and training-focused SOC workflow platform."
+
+Q: How often does it update?
+A: "The sync worker polls on a short interval (configured in deployment) and updates the graph continuously."
+
+Q: What if an agent is removed?
+A: "The reconciliation process removes stale agent/fact relationships so the graph reflects current state."
+
+
+Quick fallback if demo data is empty
+- In CALDERA, run one small operation on one active agent.
+- Return to dashboard and refresh.
+- Show counts and path panel updating.
+
+Review Add-on: Cloud Attacks Mitigated + MITRE/CALDERA Attack-Path Simulation
+
+1) What cloud attacks this project helps mitigate
+(Training/simulation and SOC response workflow level)
+- Initial access and command execution abuse (scripted payload launch).
+- Credential access and account misuse (credential dumping patterns, stolen admin use).
+- Lateral movement across hosts/services (east-west spread).
+- Persistence mechanisms (scheduled task/service-style persistence).
+- Data staging and exfiltration attempts (suspicious outbound movement).
+
+How to say it safely in review:
+"This platform simulates and detects attack progression patterns, then guides containment and hardening actions. It is a SOC simulation/training and attack-path visibility solution, not a replacement for enterprise EDR."
+
+2) How MITRE and CALDERA are used to show attack-path simulation
+- CALDERA side:
+  - Abilities are mapped to ATT&CK techniques.
+  - An operation executes ability links on agents.
+  - Each executed link gives command/activity context.
+
+- Mapping side:
+  - Executed links are normalized into graph facts.
+  - Technique IDs from CALDERA abilities are attached to those facts.
+
+- Neo4j graph side:
+  - Agent node -> EXECUTED -> Fact node
+  - Fact node -> NEXT -> Fact node (timeline/progression)
+  - Fact node -> USES -> Technique (MITRE)
+
+- Dashboard side:
+  - Displays chain depth, risk, top techniques, and target-focused paths.
+  - This is the visible attack-path simulation: ordered actions over time, not isolated alerts.
+
+3) Short answer if reviewer asks "How does this mitigate attacks?"
+"It mitigates by shortening analyst response time: we map adversary behavior to MITRE techniques, visualize progression as attack paths, prioritize risk, and guide containment/recovery steps through SOC, maze, and CTF learning flows."
+
+4) Short answer if reviewer asks "Why MITRE?"
+"MITRE gives a standard behavior language. It helps us classify actions consistently, compare scenarios, and attach practical defenses per technique."

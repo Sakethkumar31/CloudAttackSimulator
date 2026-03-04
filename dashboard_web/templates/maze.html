@@ -1,0 +1,653 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud Attack Path Simulator - Maze Lab</title>
+  <style>
+    :root {
+      --bg0: #040711;
+      --bg1: #0a1222;
+      --bg2: #11203a;
+      --panel: rgba(10, 18, 34, 0.78);
+      --line: rgba(88, 140, 220, 0.35);
+      --text: #def2ff;
+      --muted: #97b8da;
+      --ok: #2af2c9;
+      --warn: #ffcb65;
+      --bad: #ff6b7f;
+      --vio: #80a7ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Consolas, 'Courier New', monospace;
+      color: var(--text);
+      background:
+        radial-gradient(900px 500px at 10% -10%, #1a2d52 0%, transparent 60%),
+        radial-gradient(900px 550px at 90% 0%, #17304f 0%, transparent 62%),
+        linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 35%, var(--bg0) 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .noise {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: 0.08;
+      background-image: radial-gradient(#9ec8ff 0.6px, transparent 0.6px);
+      background-size: 3px 3px;
+      mix-blend-mode: screen;
+      animation: drift 16s linear infinite;
+    }
+
+    @keyframes drift {
+      from { transform: translateY(0px); }
+      to { transform: translateY(30px); }
+    }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      letter-spacing: 0.4px;
+      text-shadow: 0 0 16px rgba(127, 230, 255, 0.22);
+    }
+
+    .btn {
+      color: #b7f2ff;
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: rgba(10, 22, 40, 0.75);
+      padding: 8px 11px;
+      border-radius: 8px;
+      display: inline-block;
+      transition: 0.2s ease;
+    }
+
+    .btn:hover {
+      border-color: rgba(127, 230, 255, 0.7);
+      box-shadow: 0 0 14px rgba(127, 230, 255, 0.2);
+    }
+
+    .btn.warn {
+      color: #ffe9af;
+      border-color: rgba(255, 203, 101, 0.55);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(6px);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: inset 0 0 0 1px rgba(126, 174, 255, 0.08), 0 10px 32px rgba(2, 8, 20, 0.55);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .chip {
+      border: 1px solid rgba(123, 171, 247, 0.38);
+      background: rgba(8, 16, 30, 0.9);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .maze-board-wrap {
+      position: relative;
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(10, 22, 40, 0.9), rgba(8, 14, 28, 0.95));
+      padding: 10px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .maze-glow {
+      position: absolute;
+      inset: -20%;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(60, 165, 255, 0.18), transparent 35%),
+        radial-gradient(circle at 80% 60%, rgba(42, 242, 201, 0.16), transparent 36%),
+        radial-gradient(circle at 65% 15%, rgba(255, 107, 127, 0.12), transparent 30%);
+      filter: blur(24px);
+      pointer-events: none;
+    }
+
+    #mazeBoard {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(36px, 1fr));
+      gap: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cell {
+      aspect-ratio: 1 / 1;
+      border: 1px solid rgba(83, 125, 194, 0.44);
+      border-radius: 6px;
+      background: rgba(6, 12, 24, 0.95);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cell.wall {
+      background: linear-gradient(145deg, #111a2f, #091224);
+      border-color: rgba(51, 80, 126, 0.55);
+    }
+
+    .cell.path::after {
+      content: '';
+      position: absolute;
+      inset: 25%;
+      border-radius: 50%;
+      background: rgba(94, 146, 224, 0.3);
+      filter: blur(2px);
+    }
+
+    .cell.player {
+      border-color: rgba(42, 242, 201, 0.9);
+      box-shadow: inset 0 0 0 1px rgba(42, 242, 201, 0.45), 0 0 18px rgba(42, 242, 201, 0.4);
+    }
+
+    .cell.player::before {
+      content: 'P';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #d8fff5;
+      font-size: 12px;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(42, 242, 201, 0.7);
+    }
+
+    .cell.threat {
+      border-color: rgba(255, 107, 127, 0.9);
+      box-shadow: 0 0 14px rgba(255, 107, 127, 0.28);
+    }
+
+    .cell.threat::before {
+      content: '!';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffe1e6;
+      font-weight: bold;
+      animation: pulse 1s infinite;
+    }
+
+    .cell.safe {
+      border-color: rgba(42, 242, 201, 0.9);
+    }
+
+    .cell.safe::before {
+      content: 'S';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #b7fff0;
+      font-size: 11px;
+    }
+
+    .cell.goal {
+      border-color: rgba(255, 203, 101, 0.95);
+      box-shadow: 0 0 16px rgba(255, 203, 101, 0.35);
+    }
+
+    .cell.goal::before {
+      content: 'G';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff5d8;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    @keyframes pulse {
+      50% { opacity: 0.35; transform: scale(1.08); }
+    }
+
+    .progress {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(100px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .step {
+      border: 1px solid rgba(83, 125, 194, 0.5);
+      border-radius: 8px;
+      background: rgba(8, 14, 28, 0.95);
+      padding: 8px;
+      font-size: 12px;
+      min-height: 56px;
+    }
+
+    .step.active { border-color: rgba(255, 203, 101, 0.95); }
+    .step.done {
+      border-color: rgba(42, 242, 201, 0.9);
+      background: rgba(42, 242, 201, 0.12);
+    }
+
+    details {
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 10px;
+      background: rgba(8, 14, 28, 0.92);
+      margin-top: 8px;
+      padding: 8px;
+    }
+
+    summary { cursor: pointer; color: #9ad9ff; }
+
+    .case {
+      margin-top: 6px;
+      color: var(--muted);
+      white-space: pre-line;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .log {
+      height: 230px;
+      overflow: auto;
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 8px;
+      background: #070d1a;
+      padding: 8px;
+      white-space: pre-line;
+      font-size: 12px;
+    }
+
+    .term { display: flex; gap: 6px; margin-top: 8px; }
+    input, button {
+      background: #101c32;
+      color: var(--text);
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    input { flex: 1; }
+    button { cursor: pointer; }
+
+    .quick {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .quick button { font-size: 12px; }
+
+    #ctfFrame {
+      width: 100%;
+      height: 240px;
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 8px;
+      background: #050b12;
+      display: none;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .progress { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="wrap">
+    <div class="top">
+      <h2>Cloud Attack Path Simulator - Interactive Maze</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn warn" href="/ctf" target="_blank" rel="noopener">Open CTF</a>
+        <a class="btn" href="/">Back to SOC</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div style="font-size:13px;line-height:1.5;">
+          Objective: simulate real attack paths, clear each threat node using terminal actions in correct order, and reach a verified secure state.
+        </div>
+
+        <div class="chips">
+          <div class="chip">Level:
+            <select id="mazeLevel" style="background:#08111b;color:#dff4ff;border:1px solid rgba(126,174,255,0.35);">
+              <option value="easy">easy</option>
+              <option value="medium">medium</option>
+              <option value="hard">hard</option>
+            </select>
+          </div>
+          <div class="chip">Health: <span id="health">100</span></div>
+          <div class="chip">Score: <span id="score">0</span></div>
+          <div class="chip">Scenario: <span id="scenarioName">-</span></div>
+          <div class="chip">Technique: <span id="scenarioTech">-</span></div>
+          <div class="chip">Completed: <span id="completed">0</span>/<span id="totalScenarios">0</span></div>
+        </div>
+
+        <div class="maze-board-wrap">
+          <div class="maze-glow"></div>
+          <div id="mazeBoard"></div>
+        </div>
+
+        <div id="steps" class="progress"></div>
+
+        <details open>
+          <summary>Attack Intel</summary>
+          <div id="attackText" class="case">Loading...</div>
+          <div id="caseText" class="case"></div>
+        </details>
+      </div>
+
+      <div class="panel">
+        <details open>
+          <summary>Terminal Environment</summary>
+          <div id="terminalLog" class="log">Initializing environment...</div>
+          <div class="term">
+            <input id="cmdInput" placeholder="recon | logs | isolate | block | patch | rotate | verify | next | status | help">
+            <button onclick="runCmd()">Run</button>
+          </div>
+          <div class="quick">
+            <button onclick="quickCmd('help')">help</button>
+            <button onclick="quickCmd('status')">status</button>
+            <button onclick="quickCmd('recon')">recon</button>
+            <button onclick="quickCmd('logs')">logs</button>
+            <button onclick="quickCmd('isolate')">isolate</button>
+            <button onclick="quickCmd('block')">block</button>
+            <button onclick="quickCmd('patch')">patch</button>
+            <button onclick="quickCmd('rotate')">rotate</button>
+            <button onclick="quickCmd('verify')">verify</button>
+            <button onclick="quickCmd('next')">next</button>
+            <button onclick="resetEnv()">reset</button>
+          </div>
+        </details>
+
+        <details open>
+          <summary>Maze Tutor Chatbot</summary>
+          <div style="margin-top:6px;">
+            <select id="mazeTutorMode">
+              <option value="beginner">Tutor: Beginner</option>
+              <option value="intermediate" selected>Tutor: Intermediate</option>
+              <option value="expert">Tutor: Expert</option>
+            </select>
+          </div>
+          <div id="chatLog" class="log" style="height:170px;">Bot: Ask what to do now and I will guide you.</div>
+          <div class="term">
+            <input id="chatInput" placeholder="Ask: what is my next command?">
+            <button onclick="askBot()">Ask</button>
+          </div>
+          <div class="quick">
+            <button onclick="askPreset('What is my exact next command?')">Next command</button>
+            <button onclick="askPreset('Explain this attack in simple words')">Explain attack</button>
+            <button onclick="askPreset('Give me fast mitigation checklist')">Fast checklist</button>
+          </div>
+        </details>
+
+        <details>
+          <summary>CTF Practice</summary>
+          <div class="case">After each scenario, practice the related CTF level.</div>
+          <div class="quick">
+            <a class="btn warn" href="/ctf" target="_blank" rel="noopener">Open CTF</a>
+            <button onclick="toggleCtf()">Toggle Embedded CTF</button>
+          </div>
+          <iframe id="ctfFrame" src="/ctf"></iframe>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let mazeState = null;
+
+    const wallCells = new Set([
+      '1,0','1,2','1,3','3,1','3,2','5,0','5,1','6,3','2,5','4,6'
+    ]);
+
+    const pathRoute = [
+      [0,0], [1,1], [2,1], [3,3], [4,3], [5,5], [6,5], [7,7]
+    ];
+
+    const threatSlots = [
+      [1,1], [3,3], [5,5], [6,5], [7,6]
+    ];
+
+    function appendLog(line) {
+      const el = document.getElementById('terminalLog');
+      el.textContent += `\n${line}`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setLog(lines) {
+      const el = document.getElementById('terminalLog');
+      el.textContent = (lines && lines.length) ? lines.join('\n') : 'No output yet.';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function cellKey(x, y) { return `${x},${y}`; }
+
+    function renderMazeBoard(state) {
+      const board = document.getElementById('mazeBoard');
+      board.innerHTML = '';
+
+      const scn = state.scenario_index;
+      const goalPos = [7,7];
+      const playerPos = state.finished
+        ? goalPos
+        : (pathRoute[Math.min(scn, pathRoute.length - 1)] || [0,0]);
+
+      const total = Math.max(0, Math.min(state.total_scenarios || 0, threatSlots.length));
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const d = document.createElement('div');
+          d.className = 'cell';
+          const key = cellKey(x, y);
+
+          if (wallCells.has(key)) d.classList.add('wall');
+          if (pathRoute.some(([px, py]) => px === x && py === y)) d.classList.add('path');
+
+          if (x === goalPos[0] && y === goalPos[1]) d.classList.add('goal');
+
+          threatSlots.slice(0, total).forEach((pos, idx) => {
+            const [tx, ty] = pos;
+            if (x === tx && y === ty) {
+              if (state.completed > Number(idx)) d.classList.add('safe');
+              else d.classList.add('threat');
+            }
+          });
+
+          if (x === playerPos[0] && y === playerPos[1]) d.classList.add('player');
+
+          board.appendChild(d);
+        }
+      }
+    }
+
+    function renderSteps(state) {
+      const holder = document.getElementById('steps');
+      holder.innerHTML = '';
+      const scenario = state.scenario;
+      if (!scenario) {
+        holder.innerHTML = '<div class="step done">All scenarios complete.</div>';
+        return;
+      }
+
+      const activeIdx = state.next_step
+        ? scenario.steps.findIndex(s => s.cmd === state.next_step.cmd)
+        : scenario.steps.length;
+
+      scenario.steps.forEach((s, idx) => {
+        const d = document.createElement('div');
+        d.className = 'step';
+        if (idx < activeIdx) d.classList.add('done');
+        if (idx === activeIdx) d.classList.add('active');
+        d.textContent = `${idx + 1}. ${s.label} (${s.cmd})`;
+        holder.appendChild(d);
+      });
+    }
+
+    function renderState(state) {
+      mazeState = state;
+      if (state.level) document.getElementById('mazeLevel').value = state.level;
+      document.getElementById('health').textContent = state.health;
+      document.getElementById('score').textContent = state.score;
+      document.getElementById('completed').textContent = state.completed;
+      document.getElementById('totalScenarios').textContent = state.total_scenarios || 0;
+
+      if (state.scenario) {
+        document.getElementById('scenarioName').textContent = state.scenario.name;
+        document.getElementById('scenarioTech').textContent = state.scenario.technique;
+        document.getElementById('attackText').textContent = `Attack: ${state.scenario.attack}`;
+        document.getElementById('caseText').textContent = `Case Study: ${state.scenario.case_study}`;
+      } else {
+        document.getElementById('scenarioName').textContent = 'Completed';
+        document.getElementById('scenarioTech').textContent = '-';
+        document.getElementById('attackText').textContent = 'All scenarios mitigated.';
+        document.getElementById('caseText').textContent = '';
+      }
+
+      renderMazeBoard(state);
+      renderSteps(state);
+      setLog(state.history || []);
+      if (state.output) appendLog(`>> ${state.output}`);
+    }
+
+    async function loadState() {
+      const res = await fetch('/api/maze/state');
+      const data = await res.json();
+      renderState(data);
+    }
+
+    async function setMazeLevel(level) {
+      const res = await fetch('/api/maze/level', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({level})
+      });
+      const data = await res.json();
+      renderState(data);
+    }
+
+    async function runCmd() {
+      const input = document.getElementById('cmdInput');
+      const cmd = (input.value || '').trim();
+      if (!cmd) return;
+      appendLog(`$ ${cmd}`);
+      input.value = '';
+
+      const res = await fetch('/api/maze/command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command: cmd})
+      });
+      const data = await res.json();
+      renderState(data);
+    }
+
+    function quickCmd(cmd) {
+      document.getElementById('cmdInput').value = cmd;
+      runCmd();
+    }
+
+    async function resetEnv() {
+      const res = await fetch('/api/maze/reset', {method: 'POST'});
+      const data = await res.json();
+      renderState(data);
+    }
+
+    async function askBot() {
+      const input = document.getElementById('chatInput');
+      const msg = (input.value || '').trim();
+      if (!msg) return;
+      const log = document.getElementById('chatLog');
+      log.textContent += `\nYou: ${msg}`;
+      input.value = '';
+
+      const technique = mazeState && mazeState.scenario ? mazeState.scenario.technique : 'unknown';
+      const res = await fetch('/api/maze_chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg, technique})
+      });
+      const data = await res.json();
+      log.textContent += `\nBot: ${data.reply || 'No response'}`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function askPreset(q) {
+      document.getElementById('chatInput').value = q;
+      askBot();
+    }
+
+    async function loadTutorMode() {
+      const res = await fetch('/api/tutor_mode?module=maze');
+      const data = await res.json();
+      if (data.mode) document.getElementById('mazeTutorMode').value = data.mode;
+    }
+
+    function toggleCtf() {
+      const frame = document.getElementById('ctfFrame');
+      frame.style.display = frame.style.display === 'none' ? 'block' : 'none';
+    }
+
+    document.getElementById('cmdInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runCmd();
+    });
+    document.getElementById('chatInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') askBot();
+    });
+    document.getElementById('mazeTutorMode').addEventListener('change', async (e) => {
+      await fetch('/api/tutor_mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({module: 'maze', mode: e.target.value})
+      });
+    });
+    document.getElementById('mazeLevel').addEventListener('change', (e) => {
+      setMazeLevel(e.target.value);
+    });
+
+    loadState();
+    loadTutorMode();
+  </script>
+</body>
+</html>

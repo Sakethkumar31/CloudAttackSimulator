@@ -1,0 +1,66 @@
+﻿version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: caldera_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sync_worker:
+    image: python:3.11-slim
+    container_name: sync_worker
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: >
+      sh -c "pip install --no-cache-dir -r services/sync_worker/requirements.txt &&
+             python services/sync_worker/main.py"
+    environment:
+      CALDERA_URL: ${CALDERA_URL}
+      CALDERA_API_KEY: ${CALDERA_API_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      STREAM_NAME: caldera.links.v1
+      POLL_INTERVAL_SECONDS: 5
+      REQUEST_TIMEOUT_SECONDS: 15
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  graph_writer:
+    image: python:3.11-slim
+    container_name: graph_writer
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ..:/app
+    command: >
+      sh -c "pip install --no-cache-dir -r services/graph_writer/requirements.txt &&
+             python services/graph_writer/main.py"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      STREAM_NAME: caldera.links.v1
+      DLQ_STREAM: caldera.links.dlq
+      PUBSUB_CHANNEL: graph.updated
+      CONSUMER_GROUP: writers
+      CONSUMER_NAME: writer-1
+      MAX_RETRIES: 5
+      BLOCK_MS: 5000
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
