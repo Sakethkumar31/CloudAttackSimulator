@@ -7,7 +7,7 @@ cd /d "%~dp0"
 echo.
 echo [cloud-attack-lab] Starting lab stack inside WSL (Ubuntu-22.04)...
 echo   - Requires: Docker Engine inside Ubuntu-22.04
-echo   - Caldera build context: /home/saketh/cloud-attack-lab/caldera
+echo   - Caldera build context: %WSL_PATH%\caldera
 echo   - Update WSL_PATH in this script if your repo is in a different location
 echo.
 
@@ -20,8 +20,8 @@ if not exist "%COMPOSE_FILE:\=/%" (
     goto :eof
 )
 
-REM Set your WSL path here - update if your repo is in a different location
-set "WSL_PATH=/home/saketh/cloud-attack-lab"
+REM Set your WSL path - using /mnt/c for Windows C: drive
+set "WSL_PATH=/mnt/c/Users/91895/Desktop/projects/cloud-attack-lab"
 
 echo Launching docker compose via WSL...
 wsl -d Ubuntu-22.04 -- bash -lc "cd '%WSL_PATH%' && if [ -f '%ENV_FILE%' ]; then docker compose --env-file '%ENV_FILE%' -f '%COMPOSE_FILE%' up -d; else docker compose -f '%COMPOSE_FILE%' up -d; fi"

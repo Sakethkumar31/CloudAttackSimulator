@@ -4,8 +4,8 @@ setlocal
 echo [Cloud Attack Lab] Clean restart - removing all containers and images...
 echo.
 
-REM Set your WSL path here
-set "WSL_PATH=/home/saketh/cloud-attack-lab"
+REM Set your WSL path - using /mnt/c for Windows C: drive
+set "WSL_PATH=/mnt/c/Users/91895/Desktop/projects/cloud-attack-lab"
 
 REM Stop and remove all containers
 echo [Cloud Attack Lab] Stopping containers...

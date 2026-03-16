@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   neo4j:
     image: neo4j:5
@@ -10,16 +8,15 @@ services:
       - "7687:7687"
     environment:
       NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4jpassword}"
-      NEO4J_USER: "${NEO4J_USER:-neo4j}"
-      NEO4J_PASSWORD: "${NEO4J_PASSWORD:-neo4jpassword}"
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u \"${NEO4J_USER:-neo4j}\" -p \"${NEO4J_PASSWORD:-neo4jpassword}\" 'RETURN 1' >/dev/null 2>&1"]
-      interval: 10s
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 15s
       timeout: 10s
       retries: 30
+      start_period: 60s
 
   # CALDERA service commented out - run CALDERA on host (localhost:8888) instead
   # Uncomment below if you want CALDERA inside Docker
