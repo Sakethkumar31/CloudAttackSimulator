@@ -1,6 +1,51 @@
-﻿version: "3.9"
+version: "3.9"
 
 services:
+  neo4j:
+    image: neo4j:5
+    container_name: caldera_neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4jpassword}"
+      NEO4J_USER: "${NEO4J_USER:-neo4j}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:-neo4jpassword}"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u \"${NEO4J_USER:-neo4j}\" -p \"${NEO4J_PASSWORD:-neo4jpassword}\" 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  # CALDERA service commented out - run CALDERA on host (localhost:8888) instead
+  # Uncomment below if you want CALDERA inside Docker
+  # caldera:
+  #   build:
+  #     context: ../caldera
+  #     args:
+  #       VARIANT: slim
+  #   container_name: caldera_server
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8888:8888"
+  #     - "7010:7010"
+  #     - "7011:7011/udp"
+  #     - "7012:7012"
+  #     - "8853:8853"
+  #     - "8022:8022"
+  #     - "2222:2222"
+  #   volumes:
+  #     - ./caldera.local.yml:/usr/src/app/conf/local.yml:ro
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',8888)); s.close()\""]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 30
+
   redis:
     image: redis:7-alpine
     container_name: caldera_redis
@@ -14,19 +59,39 @@ services:
       timeout: 3s
       retries: 10
 
+  dashboard:
+    build:
+      context: ..
+      dockerfile: dashboard_web/Dockerfile
+    container_name: soc_dashboard
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NEO4J_URI: ${NEO4J_URI:-neo4j://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4jpassword}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-redops_secure_key}
+      DASHBOARD_USER: ${DASHBOARD_USER:-socadmin}
+      DASHBOARD_PASS: ${DASHBOARD_PASS:-redops123}
+      ALLOW_MULTI_USER: ${ALLOW_MULTI_USER:-1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
   sync_worker:
-    image: python:3.11-slim
+    build:
+      context: ..
+      dockerfile: services/sync_worker/Dockerfile
     container_name: sync_worker
     restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ..:/app
-    command: >
-      sh -c "pip install --no-cache-dir -r services/sync_worker/requirements.txt &&
-             python services/sync_worker/main.py"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      CALDERA_URL: ${CALDERA_URL}
-      CALDERA_API_KEY: ${CALDERA_API_KEY}
+      CALDERA_URL: ${CALDERA_URL:-http://host.docker.internal:8888}
+      CALDERA_API_KEY: ${CALDERA_API_KEY:-}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
@@ -38,15 +103,11 @@ services:
         condition: service_healthy
 
   graph_writer:
-    image: python:3.11-slim
+    build:
+      context: ..
+      dockerfile: services/graph_writer/Dockerfile
     container_name: graph_writer
     restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ..:/app
-    command: >
-      sh -c "pip install --no-cache-dir -r services/graph_writer/requirements.txt &&
-             python services/graph_writer/main.py"
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -58,9 +119,15 @@ services:
       CONSUMER_NAME: writer-1
       MAX_RETRIES: 5
       BLOCK_MS: 5000
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USER}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_URI: ${NEO4J_URI:-neo4j://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4jpassword}
     depends_on:
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
