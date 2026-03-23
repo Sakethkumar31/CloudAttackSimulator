@@ -9,6 +9,8 @@ from config import (
     CONSUMER_NAME,
     DLQ_STREAM,
     MAX_RETRIES,
+    PENDING_BATCH_SIZE,
+    PENDING_IDLE_MS,
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USER,
@@ -69,6 +71,66 @@ def send_to_dlq(r, msg_id, data, reason):
     r.xadd(DLQ_STREAM, dlq_payload, maxlen=50000, approximate=True)
 
 
+def handle_message(r, writer, retry_counts, msg_id, fields):
+    event = parse_data(fields)
+    if not event:
+        r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+        return True
+
+    try:
+        event_type = event.get("event_type", "executed_link")
+        if event_type == "agent_snapshot":
+            active_agents = event.get("active_agents")
+            if active_agents is None:
+                active_agents = [{"paw": aid} for aid in event.get("active_agent_ids", [])]
+            writer.reconcile_agents(active_agents)
+        elif event_type == "operation_snapshot":
+            writer.reconcile_facts(event.get("active_fact_ids", []))
+        else:
+            writer.write_event(event)
+
+        publish_update(r, event)
+        r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+        retry_counts.pop(msg_id, None)
+        return True
+    except Exception as exc:
+        count = retry_counts.get(msg_id, 0) + 1
+        retry_counts[msg_id] = count
+        print(f"[graph_writer] failed msg={msg_id} attempt={count} err={exc}")
+
+        if count >= MAX_RETRIES:
+            send_to_dlq(r, msg_id, event, str(exc))
+            r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
+            retry_counts.pop(msg_id, None)
+        return False
+
+
+def reclaim_stale_pending(r):
+    reclaimed = []
+    start_id = "0-0"
+
+    while True:
+        result = r.xautoclaim(
+            name=STREAM_NAME,
+            groupname=CONSUMER_GROUP,
+            consumername=CONSUMER_NAME,
+            min_idle_time=PENDING_IDLE_MS,
+            start_id=start_id,
+            count=PENDING_BATCH_SIZE,
+        )
+
+        next_start, messages = result[0], result[1]
+        if not messages:
+            break
+
+        reclaimed.extend(messages)
+        start_id = next_start
+        if len(messages) < PENDING_BATCH_SIZE:
+            break
+
+    return reclaimed
+
+
 def process_loop():
     r = connect_redis()
     ensure_group(r)
@@ -80,6 +142,12 @@ def process_loop():
 
     while True:
         try:
+            reclaimed = reclaim_stale_pending(r)
+            if reclaimed:
+                print(f"[graph_writer] reclaimed {len(reclaimed)} pending messages")
+                for msg_id, fields in reclaimed:
+                    handle_message(r, writer, retry_counts, msg_id, fields)
+
             response = r.xreadgroup(
                 groupname=CONSUMER_GROUP,
                 consumername=CONSUMER_NAME,
@@ -93,35 +161,7 @@ def process_loop():
 
             for _, messages in response:
                 for msg_id, fields in messages:
-                    event = parse_data(fields)
-                    if not event:
-                        r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                        continue
-
-                    try:
-                        event_type = event.get("event_type", "executed_link")
-                        if event_type == "agent_snapshot":
-                            active_agents = event.get("active_agents")
-                            if active_agents is None:
-                                active_agents = [{"paw": aid} for aid in event.get("active_agent_ids", [])]
-                            writer.reconcile_agents(active_agents)
-                        elif event_type == "operation_snapshot":
-                            writer.reconcile_facts(event.get("active_fact_ids", []))
-                        else:
-                            writer.write_event(event)
-
-                        publish_update(r, event)
-                        r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                        retry_counts.pop(msg_id, None)
-                    except Exception as exc:
-                        count = retry_counts.get(msg_id, 0) + 1
-                        retry_counts[msg_id] = count
-                        print(f"[graph_writer] failed msg={msg_id} attempt={count} err={exc}")
-
-                        if count >= MAX_RETRIES:
-                            send_to_dlq(r, msg_id, event, str(exc))
-                            r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
-                            retry_counts.pop(msg_id, None)
+                    handle_message(r, writer, retry_counts, msg_id, fields)
 
         except Exception as exc:
             print(f"[graph_writer] loop error: {exc}")

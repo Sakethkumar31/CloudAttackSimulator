@@ -19,9 +19,25 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: radial-gradient(circle at top right, #0f1c2d, var(--bg) 40%);
+      background:
+        radial-gradient(circle at 8% 10%, rgba(0, 255, 204, 0.12), transparent 24%),
+        radial-gradient(circle at 92% 12%, rgba(247, 185, 85, 0.12), transparent 20%),
+        linear-gradient(180deg, #0a121d 0%, #070b10 58%, #05080d 100%);
       color: var(--text);
       font-family: Consolas, monospace;
+      position: relative;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(127, 230, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127, 230, 255, 0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(circle at center, black 40%, transparent 95%);
+      opacity: .6;
     }
     .topbar {
       display: flex;
@@ -30,34 +46,46 @@
       gap: 12px;
       padding: 12px 16px;
       border-bottom: 1px solid var(--line);
-      background: rgba(14, 22, 34, 0.85);
+      background: linear-gradient(180deg, rgba(13, 22, 35, 0.96), rgba(10, 17, 27, 0.88));
       position: sticky;
       top: 0;
       z-index: 10;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
     }
     .title-wrap { display: flex; flex-direction: column; gap: 3px; }
-    .title { color: var(--cyan); font-size: 18px; font-weight: 700; }
+    .title { color: var(--cyan); font-size: 18px; font-weight: 700; letter-spacing: 0.4px; text-shadow: 0 0 18px rgba(0, 255, 204, 0.18); }
     .subtitle { color: var(--muted); font-size: 11px; }
     .controls { display: flex; gap: 10px; flex-wrap: wrap; }
     select, button {
-      background: #0b131e;
+      background: linear-gradient(180deg, #111c2a, #0b131e);
       color: var(--text);
       border: 1px solid var(--line);
       padding: 8px 10px;
+      border-radius: 10px;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
     }
     button { cursor: pointer; }
+    button:hover, select:hover, .logout:hover, .learn-link:hover {
+      transform: translateY(-1px);
+      border-color: rgba(127, 230, 255, 0.5);
+      box-shadow: 0 0 0 1px rgba(127, 230, 255, 0.08), 0 8px 18px rgba(0, 0, 0, 0.2);
+    }
     .logout {
       color: var(--cyan);
       border: 1px solid var(--cyan);
       text-decoration: none;
       padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(0, 255, 204, 0.04);
     }
     .learn-link {
       color: var(--amber);
       border: 1px solid var(--amber);
       text-decoration: none;
       padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(247, 185, 85, 0.04);
     }
     .grid {
       display: grid;
@@ -67,9 +95,11 @@
       min-height: calc(100vh - 70px);
     }
     .panel {
-      background: var(--panel);
+      background: linear-gradient(180deg, rgba(14, 22, 34, 0.98), rgba(10, 16, 25, 0.98));
       border: 1px solid var(--line);
       padding: 12px;
+      border-radius: 18px;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), 0 16px 34px rgba(0, 0, 0, 0.24);
     }
     .kpis {
       display: grid;
@@ -80,7 +110,9 @@
     .kpi {
       border: 1px solid var(--line);
       padding: 8px;
-      background: #0b131e;
+      background: linear-gradient(180deg, rgba(14, 24, 38, 0.95), rgba(8, 15, 24, 0.95));
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.03);
     }
     .kpi .v { font-size: 18px; color: var(--cyan); }
     .kpi .l { color: var(--muted); font-size: 12px; }
@@ -88,7 +120,8 @@
       margin: 10px 0;
       border: 1px solid var(--line);
       padding: 8px;
-      background: #0b131e;
+      background: linear-gradient(180deg, rgba(16, 26, 39, 0.98), rgba(10, 17, 26, 0.98));
+      border-radius: 14px;
     }
     .bar {
       width: 100%;
@@ -157,37 +190,172 @@
       padding: 6px 0;
     }
     .path-list li:last-child { border-bottom: 0; }
+    .defense-list li { margin-bottom: 6px; }
+    .agent-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .agent-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      background: linear-gradient(180deg, rgba(15, 24, 37, 0.98), rgba(9, 15, 24, 0.98));
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .agent-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(127, 230, 255, 0.46);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+    }
+    .agent-card.selected {
+      border-color: rgba(0, 255, 204, 0.55);
+      box-shadow: inset 0 0 0 1px rgba(0, 255, 204, 0.16), 0 10px 24px rgba(0, 0, 0, 0.25);
+      background: linear-gradient(180deg, rgba(13, 31, 37, 0.98), rgba(9, 17, 24, 0.98));
+    }
+    .agent-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .agent-name {
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .agent-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(127, 230, 255, 0.2);
+      background: rgba(127, 230, 255, 0.06);
+      color: var(--muted);
+    }
+    .agent-pill.critical { color: #ffd8d8; border-color: rgba(255, 59, 59, 0.4); background: rgba(255, 59, 59, 0.12); }
+    .agent-pill.elevated { color: #ffe0b6; border-color: rgba(247, 185, 85, 0.4); background: rgba(247, 185, 85, 0.12); }
+    .agent-pill.low { color: #bff9e6; border-color: rgba(0, 255, 204, 0.3); background: rgba(0, 255, 204, 0.08); }
+    .agent-meta {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .selectable-item {
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease;
+      border: 1px solid transparent;
+      padding: 6px;
+      border-radius: 8px;
+    }
+    .selectable-item:hover {
+      background: rgba(0, 255, 204, 0.08);
+      border-color: rgba(0, 255, 204, 0.18);
+    }
+    .selectable-item.selected {
+      background: rgba(0, 255, 204, 0.12);
+      border-color: rgba(0, 255, 204, 0.42);
+    }
+    .focus-card {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(15, 24, 37, 0.98), rgba(10, 16, 25, 0.98));
+      padding: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      border-radius: 14px;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
+    }
+    .focus-title {
+      color: var(--cyan);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .focus-subtitle {
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .focus-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 8px 0;
+    }
+    .focus-tag {
+      border: 1px solid var(--line);
+      background: #09101a;
+      color: var(--amber);
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+    .compact-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+    .compact-list li {
+      margin-bottom: 5px;
+    }
     .chat-panel {
       margin-top: 10px;
       border: 1px solid var(--line);
-      background: #0b131e;
-      padding: 8px;
+      background: linear-gradient(180deg, rgba(13, 22, 35, 0.98), rgba(9, 15, 24, 0.98));
+      padding: 10px;
+      border-radius: 16px;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
     }
     .chat-log {
       height: 130px;
       overflow: auto;
       border: 1px solid #1a2b3d;
-      padding: 8px;
+      padding: 10px;
       font-size: 12px;
       margin-bottom: 8px;
       white-space: pre-line;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(8, 14, 21, 0.96), rgba(7, 11, 17, 0.96));
     }
     .chat-row {
       display: flex;
       gap: 6px;
     }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 8px 0;
+    }
+    .quick-actions button {
+      padding: 6px 8px;
+      font-size: 11px;
+      margin-top: 0;
+    }
     .chat-row input {
       flex: 1;
-      background: #09101a;
+      background: linear-gradient(180deg, #101926, #09101a);
       border: 1px solid #1f3145;
       color: var(--text);
-      padding: 6px;
+      padding: 8px 10px;
+      border-radius: 10px;
     }
     #graph-wrap {
-      background: var(--panel);
+      background:
+        radial-gradient(circle at top left, rgba(0, 255, 204, 0.08), transparent 22%),
+        radial-gradient(circle at bottom right, rgba(247, 185, 85, 0.08), transparent 18%),
+        linear-gradient(180deg, rgba(14, 22, 34, 0.98), rgba(8, 14, 22, 0.98));
       border: 1px solid var(--line);
       min-height: 70vh;
       position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), 0 16px 34px rgba(0, 0, 0, 0.22);
     }
     #graph { width: 100%; height: 100%; min-height: 70vh; }
     .empty, .notice {
@@ -197,6 +365,40 @@
       background: rgba(122, 53, 53, 0.15);
       color: #ffb3b3;
       font-size: 12px;
+    }
+    .backend {
+      margin-bottom: 12px;
+      border: 1px solid var(--line);
+      padding: 10px;
+      background: #0b131e;
+      font-size: 12px;
+    }
+    .backend.ok { border-color: #1e6a57; }
+    .backend.bad { border-color: #8f2a2a; }
+    .backend-title {
+      color: var(--amber);
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .backend-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .backend-chip {
+      border: 1px solid var(--line);
+      padding: 6px;
+      background: #09101a;
+    }
+    .backend-chip strong {
+      display: block;
+      color: var(--cyan);
+      font-size: 15px;
+    }
+    .backend-url {
+      color: var(--muted);
+      word-break: break-all;
     }
     @media (max-width: 920px) {
       .grid { grid-template-columns: 1fr; }
@@ -231,6 +433,19 @@
 
   <div class="grid">
     <aside class="panel">
+      <div id="backendPanel" class="backend {% if backend_status.connected %}ok{% else %}bad{% endif %}">
+        <div class="backend-title">Backend Status</div>
+        <div>Caldera API: <strong id="backendState">{{ "CONNECTED" if backend_status.connected else "NOT CONNECTED" }}</strong></div>
+        <div class="backend-url" id="backendUrl">{{ backend_status.url }}</div>
+        <div id="backendError" style="margin-top:6px;{% if not backend_status.error %}display:none;{% endif %}">{{ backend_status.error or "" }}</div>
+        <div class="backend-grid">
+          <div class="backend-chip"><strong id="backendOps">{{ backend_status.operations }}</strong><span>Operations</span></div>
+          <div class="backend-chip"><strong id="backendAgents">{{ backend_status.agents }}</strong><span>Agents</span></div>
+          <div class="backend-chip"><strong id="backendAbilities">{{ backend_status.abilities }}</strong><span>Abilities</span></div>
+          <div class="backend-chip"><strong id="backendConfig">{{ "YES" if backend_status.configured else "NO" }}</strong><span>Env Configured</span></div>
+        </div>
+      </div>
+
       <div class="kpis">
         <div class="kpi"><div class="v" id="kpiAgents">0</div><div class="l">Agents</div></div>
         <div class="kpi"><div class="v" id="kpiFacts">0</div><div class="l">Facts</div></div>
@@ -260,8 +475,38 @@
       </div>
 
       <div class="mitre">
+        <h3>Agent Defense Matrix</h3>
+        <div id="agentDefenseGrid" class="agent-grid"></div>
+      </div>
+
+      <div class="chat-panel">
+        <h3 style="margin:0 0 8px;color:#7fe6ff;">Interactive Defense Advisor</h3>
+        <div id="defenseLog" class="chat-log">Advisor: Select an attack focus or defense suggestion, then ask what to contain, detect, harden, or validate.</div>
+        <div class="quick-actions">
+          <button type="button" onclick="sendDefensePreset('What should I contain first for this attack?')">Contain</button>
+          <button type="button" onclick="sendDefensePreset('Which logs and telemetry should I review first?')">Detect</button>
+          <button type="button" onclick="sendDefensePreset('What hardening changes should I make after containment?')">Harden</button>
+          <button type="button" onclick="sendDefensePreset('How do I validate the attacker path is closed?')">Validate</button>
+        </div>
+        <div class="chat-row">
+          <input id="defenseInput" placeholder="Ask: what is the best defense for this selected attack?">
+          <button id="defenseSendBtn">Ask</button>
+        </div>
+      </div>
+
+      <div class="mitre">
         <h3>Attack Paths</h3>
         <ul id="pathList" class="path-list"></ul>
+      </div>
+
+      <div class="mitre">
+        <h3>Current Attack Focus</h3>
+        <div id="attackFocus" class="focus-card">Select a likely attack or attack path to guide the chatbot.</div>
+      </div>
+
+      <div class="mitre">
+        <h3>WSL Adversary Model</h3>
+        <div id="adversaryModel" class="focus-card">Loading adversary model...</div>
       </div>
 
       <div class="chat-panel">
@@ -285,16 +530,50 @@
     let autoRefresh = true;
     let timerId = null;
     const initialGraph = {{ graph | tojson | safe }};
+    const initialBackendStatus = {{ backend_status | tojson | safe }};
 
     const agentFilter = document.getElementById('agentFilter');
     const targetFilter = document.getElementById('targetFilter');
     const autoBtn = document.getElementById('autoBtn');
     const tutorMode = document.getElementById('tutorMode');
     const defenseList = document.getElementById('defenseList');
+    const agentDefenseGrid = document.getElementById('agentDefenseGrid');
     const scenarioList = document.getElementById('scenarioList');
     const pathList = document.getElementById('pathList');
+    const attackFocus = document.getElementById('attackFocus');
+    const adversaryModel = document.getElementById('adversaryModel');
+    const defenseLog = document.getElementById('defenseLog');
+    const defenseInput = document.getElementById('defenseInput');
     const chatLog = document.getElementById('chatLog');
     const chatInput = document.getElementById('chatInput');
+    let latestScenarioFocuses = [];
+    let latestPathFocuses = [];
+    let latestRecommendations = [];
+    let latestAgentProfiles = [];
+    let selectedFocus = null;
+    let selectedRecommendation = '';
+    let selectedAgentProfile = null;
+
+    function renderBackendStatus(status) {
+      const panel = document.getElementById('backendPanel');
+      const connected = !!status.connected;
+      panel.classList.toggle('ok', connected);
+      panel.classList.toggle('bad', !connected);
+      document.getElementById('backendState').textContent = connected ? 'CONNECTED' : 'NOT CONNECTED';
+      document.getElementById('backendUrl').textContent = status.url || 'Not configured';
+      document.getElementById('backendOps').textContent = status.operations || 0;
+      document.getElementById('backendAgents').textContent = status.agents || 0;
+      document.getElementById('backendAbilities').textContent = status.abilities || 0;
+      document.getElementById('backendConfig').textContent = status.configured ? 'YES' : 'NO';
+      const errorEl = document.getElementById('backendError');
+      if (status.error) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = status.error;
+      } else {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+      }
+    }
 
     function setOptions(selectEl, values, label) {
       const current = selectEl.value;
@@ -308,6 +587,153 @@
       if ([...selectEl.options].some(o => o.value === current)) {
         selectEl.value = current;
       }
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function focusId(focus) {
+      return `${focus.type || 'general'}|${focus.title || ''}|${focus.target || ''}`;
+    }
+
+    function markSelectedFocus() {
+      const activeId = selectedFocus ? focusId(selectedFocus) : '';
+      document.querySelectorAll('.selectable-item[data-focus-id]').forEach((el) => {
+        el.classList.toggle('selected', el.dataset.focusId === activeId);
+      });
+      document.querySelectorAll('.selectable-item[data-recommendation]').forEach((el) => {
+        el.classList.toggle('selected', (el.dataset.recommendation || '') === selectedRecommendation);
+      });
+      document.querySelectorAll('.agent-card[data-agent-id]').forEach((el) => {
+        el.classList.toggle('selected', !!selectedAgentProfile && el.dataset.agentId === selectedAgentProfile.agent_id);
+      });
+    }
+
+    function renderSelectedFocus() {
+      if (!selectedFocus) {
+        attackFocus.textContent = 'Select a likely attack or attack path to guide the chatbot.';
+        const agentText = selectedAgentProfile ? ` for ${selectedAgentProfile.agent_id}` : '';
+        chatInput.placeholder = `Ask: how to face this attack${agentText}?`;
+        defenseInput.placeholder = `Ask: what is the best defense${agentText}?`;
+        markSelectedFocus();
+        return;
+      }
+
+      const techniques = (selectedFocus.techniques || [])
+        .slice(0, 5)
+        .map((item) => `<span class="focus-tag">${escapeHtml(item)}</span>`)
+        .join('');
+
+      attackFocus.innerHTML = `
+        <div class="focus-title">${escapeHtml(selectedFocus.title)}</div>
+        <div class="focus-subtitle">${escapeHtml(selectedFocus.summary || 'Focused incident context for the chatbot.')}</div>
+        ${techniques ? `<div class="focus-tags">${techniques}</div>` : ''}
+        <div><strong>Guidance:</strong> ${escapeHtml(selectedFocus.guidance || 'Use this focus to ask about containment, detection, or validation.')}</div>
+        ${selectedAgentProfile ? `<div style="margin-top:8px;"><strong>Selected agent:</strong> ${escapeHtml(selectedAgentProfile.agent_id)} | ${escapeHtml(selectedAgentProfile.risk_level)} ${escapeHtml(selectedAgentProfile.risk_score)}</div>` : ''}
+      `;
+      const agentText = selectedAgentProfile ? ` on ${selectedAgentProfile.agent_id}` : '';
+      chatInput.placeholder = `Ask about ${selectedFocus.title.toLowerCase()}${agentText}`;
+      defenseInput.placeholder = `Ask how to defend ${selectedFocus.title.toLowerCase()}${agentText}`;
+      markSelectedFocus();
+    }
+
+    function ensureSelectedFocus() {
+      const available = [...latestScenarioFocuses, ...latestPathFocuses];
+      if (!available.length) {
+        selectedFocus = null;
+        renderSelectedFocus();
+        return;
+      }
+      if (!selectedFocus) {
+        selectedFocus = available[0];
+        renderSelectedFocus();
+        return;
+      }
+      const match = available.find((item) => focusId(item) === focusId(selectedFocus));
+      selectedFocus = match || available[0];
+      renderSelectedFocus();
+    }
+
+    function normalizeAgentProfileSelection() {
+      if (!latestAgentProfiles.length) {
+        selectedAgentProfile = null;
+        return;
+      }
+
+      if (agentFilter.value) {
+        const exact = latestAgentProfiles.find((item) => item.agent_id === agentFilter.value);
+        if (exact) {
+          selectedAgentProfile = exact;
+          return;
+        }
+      }
+
+      if (selectedAgentProfile) {
+        const match = latestAgentProfiles.find((item) => item.agent_id === selectedAgentProfile.agent_id);
+        if (match) {
+          selectedAgentProfile = match;
+          return;
+        }
+      }
+
+      selectedAgentProfile = latestAgentProfiles[0];
+    }
+
+    function riskClass(level) {
+      const normalized = String(level || 'LOW').toLowerCase();
+      if (normalized === 'critical') return 'critical';
+      if (normalized === 'elevated') return 'elevated';
+      return 'low';
+    }
+
+    function renderAgentProfiles(profiles) {
+      latestAgentProfiles = profiles || [];
+      normalizeAgentProfileSelection();
+      agentDefenseGrid.innerHTML = '';
+
+      if (!latestAgentProfiles.length) {
+        agentDefenseGrid.innerHTML = '<div class="focus-card">No agent-specific defense data yet.</div>';
+        markSelectedFocus();
+        return;
+      }
+
+      latestAgentProfiles.forEach((profile) => {
+        const card = document.createElement('div');
+        card.className = 'agent-card';
+        card.dataset.agentId = profile.agent_id;
+        const primaryRecommendation = (profile.recommendations || [])[0] || 'Collect host-specific telemetry and validate scope.';
+        const targetText = (profile.targets || []).slice(0, 3).join(', ') || 'no target labels yet';
+        card.innerHTML = `
+          <div class="agent-card-header">
+            <div class="agent-name">${escapeHtml(profile.agent_id)}</div>
+            <div class="agent-pill ${riskClass(profile.risk_level)}">${escapeHtml(profile.risk_level)} ${escapeHtml(profile.risk_score)}</div>
+          </div>
+          <div class="agent-meta">Targets: ${escapeHtml(targetText)}</div>
+          <div class="agent-meta">Techniques: ${escapeHtml((profile.techniques || []).slice(0, 4).join(', ') || 'none')}</div>
+          <div class="agent-meta" style="margin-top:6px;">${escapeHtml(primaryRecommendation)}</div>
+        `;
+        card.addEventListener('click', () => {
+          selectedAgentProfile = profile;
+          if (agentFilter.value !== profile.agent_id) {
+            agentFilter.value = profile.agent_id;
+            fetchAndRender();
+            return;
+          }
+          selectedRecommendation = (profile.recommendations || [])[0] || '';
+          renderDefense(profile.recommendations || latestRecommendations);
+          renderSelectedFocus();
+          markSelectedFocus();
+        });
+        agentDefenseGrid.appendChild(card);
+      });
+
+      markSelectedFocus();
     }
 
     function renderSummary(summary) {
@@ -358,6 +784,8 @@
             selector: 'node[type="agent"]',
             style: {
               'background-color': '#00ffcc',
+              'border-width': 2,
+              'border-color': '#0f8a74',
               'label': 'data(label)',
               'color': '#001',
               'font-size': 10,
@@ -365,6 +793,15 @@
               'text-max-width': 100,
               'shape': 'round-rectangle',
               'padding': '6px'
+            }
+          },
+          {
+            selector: 'node[type="agent"][status = "dead"]',
+            style: {
+              'background-color': '#ff3b3b',
+              'border-color': '#7f1212',
+              'color': '#fff',
+              'shape': 'diamond'
             }
           },
           {
@@ -419,47 +856,139 @@
     }
 
     function renderDefense(recommendations) {
+      latestRecommendations = recommendations || [];
+      const sourceRecommendations = (selectedAgentProfile && selectedAgentProfile.recommendations && selectedAgentProfile.recommendations.length)
+        ? selectedAgentProfile.recommendations
+        : latestRecommendations;
       defenseList.innerHTML = '';
-      if (!recommendations || !recommendations.length) {
+      if (!sourceRecommendations || !sourceRecommendations.length) {
         defenseList.innerHTML = '<li>No recommendations yet</li>';
+        selectedRecommendation = '';
+        markSelectedFocus();
         return;
       }
-      recommendations.forEach(item => {
+      sourceRecommendations.forEach(item => {
         const li = document.createElement('li');
+        li.className = 'selectable-item';
+        li.dataset.recommendation = item;
         li.textContent = item;
+        li.addEventListener('click', () => {
+          selectedRecommendation = item;
+          defenseInput.value = `Use this defense suggestion: ${item}`;
+          markSelectedFocus();
+        });
         defenseList.appendChild(li);
       });
+      if (!sourceRecommendations.includes(selectedRecommendation) && sourceRecommendations.length) {
+        selectedRecommendation = sourceRecommendations[0];
+      }
+      markSelectedFocus();
     }
 
     function renderScenarios(scenarios) {
+      latestScenarioFocuses = [];
       scenarioList.innerHTML = '';
       if (!scenarios || !scenarios.length) {
         scenarioList.innerHTML = '<li>No strong attack chain match yet.</li>';
+        ensureSelectedFocus();
         return;
       }
       scenarios.slice(0, 4).forEach((s, idx) => {
         const confidence = Math.round((s.confidence || 0) * 100);
         const matched = (s.matched || []).join(', ') || 'none';
+        const focus = {
+          type: 'scenario',
+          title: s.name || `Scenario ${idx + 1}`,
+          target: targetFilter.value || '',
+          summary: `[${s.severity || 'MEDIUM'}] confidence ${confidence}% | matched ${matched}`,
+          guidance: s.response || s.detection || 'Review telemetry, contain affected systems, and validate recovery.',
+          techniques: s.matched || s.required || [],
+        };
+        latestScenarioFocuses.push(focus);
         const li = document.createElement('li');
+        li.className = 'selectable-item';
+        li.dataset.focusId = focusId(focus);
         li.textContent = `#${idx + 1} [${s.severity || 'MEDIUM'}] ${s.name || 'Scenario'} | confidence ${confidence}% | matched ${matched}`;
+        li.addEventListener('click', () => {
+          selectedFocus = focus;
+          renderSelectedFocus();
+        });
         scenarioList.appendChild(li);
       });
+      ensureSelectedFocus();
     }
 
     function renderAttackPaths(paths, targetRisk) {
+      latestPathFocuses = [];
       pathList.innerHTML = '';
       if (!paths || !paths.length) {
         pathList.innerHTML = '<li>No attack paths built yet.</li>';
+        ensureSelectedFocus();
         return;
       }
       paths.slice(0, 5).forEach((p, idx) => {
         const agents = (p.agents || []).join(', ') || 'unknown';
         const tech = (p.techniques || []).slice(0, 3).join(' -> ') || 'none';
         const targetInfo = targetRisk && targetRisk[p.target] ? ` | target risk ${targetRisk[p.target].max_path_risk}` : '';
+        const focus = {
+          type: 'path',
+          title: `Attack Path #${idx + 1}`,
+          target: p.target || '',
+          summary: `${p.target || 'unknown target'} | depth ${p.length} | risk ${p.risk_score}${targetInfo}`,
+          guidance: `Agents involved: ${agents}. Techniques: ${tech}. Prioritize scope, containment, and evidence preservation for this path.`,
+          techniques: p.techniques || [],
+        };
+        latestPathFocuses.push(focus);
         const li = document.createElement('li');
+        li.className = 'selectable-item';
+        li.dataset.focusId = focusId(focus);
         li.textContent = `#${idx + 1} ${p.target} | depth ${p.length} | risk ${p.risk_score}${targetInfo} | agent ${agents} | tech ${tech}`;
+        li.addEventListener('click', () => {
+          selectedFocus = focus;
+          renderSelectedFocus();
+        });
         pathList.appendChild(li);
       });
+      ensureSelectedFocus();
+    }
+
+    function renderAdversaryModel(model) {
+      if (!model || !model.name) {
+        adversaryModel.textContent = 'WSL adversary model is not available yet.';
+        return;
+      }
+
+      const live = model.live_context || {};
+      const phases = (model.phases || [])
+        .map((phase) => `<li><strong>${escapeHtml(phase.name)}</strong>: ${escapeHtml(phase.goal)} (${escapeHtml((phase.techniques || []).join(', '))})</li>`)
+        .join('');
+      const steps = (model.operation_steps || [])
+        .map((item) => `<li>${escapeHtml(item)}</li>`)
+        .join('');
+      const defenses = (model.defense_priorities || [])
+        .map((item) => `<li>${escapeHtml(item)}</li>`)
+        .join('');
+      const tags = (live.highlighted_techniques || [])
+        .map((item) => `<span class="focus-tag">${escapeHtml(item)}</span>`)
+        .join('');
+
+      adversaryModel.innerHTML = `
+        <div class="focus-title">${escapeHtml(model.name)}</div>
+        <div class="focus-subtitle">${escapeHtml(model.summary || '')}</div>
+        <div><strong>Platform:</strong> ${escapeHtml(model.platform || 'WSL / Linux')}</div>
+        <div><strong>Adversary ID:</strong> ${escapeHtml(model.id || 'n/a')}</div>
+        <div><strong>CALDERA file:</strong> ${escapeHtml(model.caldera_file || 'n/a')}</div>
+        <div><strong>Operation mode:</strong> ${escapeHtml(model.operation_mode || 'Concurrent multi-agent operation')}</div>
+        <div><strong>Live scope:</strong> ${escapeHtml(`${live.active_agent_count || 0} agents | ${live.tracked_target_count || 0} targets | ${live.parallel_attack_paths || 0} attack paths`)}</div>
+        ${tags ? `<div class="focus-tags">${tags}</div>` : ''}
+        <div><strong>Active systems:</strong> ${escapeHtml((live.active_agents || []).join(', '))}</div>
+        <div><strong>Tracked targets:</strong> ${escapeHtml((live.active_targets || []).join(', '))}</div>
+        <ul class="compact-list">${phases}</ul>
+        <div class="focus-subtitle" style="margin-top:8px;">Operation setup</div>
+        <ul class="compact-list">${steps}</ul>
+        <div class="focus-subtitle" style="margin-top:8px;">Defense priorities</div>
+        <ul class="compact-list">${defenses}</ul>
+      `;
     }
 
     async function fetchDefense() {
@@ -468,13 +997,57 @@
       if (targetFilter.value) params.set('target', targetFilter.value);
       const res = await fetch(`/api/defense?${params.toString()}`, { credentials: 'same-origin' });
       const data = await res.json();
+      renderAgentProfiles(data.agent_profiles || []);
       renderScenarios(data.matched_scenarios || []);
       renderDefense(data.recommendations || []);
+      renderAdversaryModel(data.adversary_model || {});
+      renderSelectedFocus();
+    }
+
+    async function fetchBackendStatus() {
+      const res = await fetch('/api/backend_status', { credentials: 'same-origin' });
+      const data = await res.json();
+      renderBackendStatus(data || {});
     }
 
     function appendChatLine(line) {
       chatLog.textContent += `\n${line}`;
       chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function appendDefenseLine(line) {
+      defenseLog.textContent += `\n${line}`;
+      defenseLog.scrollTop = defenseLog.scrollHeight;
+    }
+
+    async function sendDefenseQuery(messageOverride) {
+      const message = (messageOverride || defenseInput.value || '').trim();
+      if (!message) return;
+      appendDefenseLine(`You: ${message}`);
+      defenseInput.value = '';
+
+      const payload = {
+        message,
+        agent: agentFilter.value || null,
+        target: targetFilter.value || null,
+        focus: selectedFocus,
+        recommendation: selectedRecommendation || '',
+        agentProfile: selectedAgentProfile
+      };
+
+      const res = await fetch('/api/defense/advisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      appendDefenseLine(`Advisor: ${data.reply || 'No defense guidance available.'}`);
+    }
+
+    function sendDefensePreset(question) {
+      defenseInput.value = question;
+      sendDefenseQuery(question);
     }
 
     async function sendChat() {
@@ -486,7 +1059,9 @@
       const payload = {
         message,
         agent: agentFilter.value || null,
-        target: targetFilter.value || null
+        target: targetFilter.value || null,
+        focus: selectedFocus,
+        agentProfile: selectedAgentProfile
       };
 
       const res = await fetch('/api/chat', {
@@ -513,6 +1088,7 @@
       renderMitre(data.techniques || []);
       renderAttackPaths(data.attack_paths || [], data.target_risk || {});
       renderGraph(data);
+      await fetchBackendStatus();
       await fetchDefense();
     }
 
@@ -527,12 +1103,14 @@
     }
 
     function applyInitialState() {
+      renderBackendStatus(initialBackendStatus || {});
       setOptions(agentFilter, initialGraph.filters?.agents || [], 'All Agents');
       setOptions(targetFilter, initialGraph.filters?.targets || [], 'All Targets');
       renderSummary(initialGraph.summary || {});
       renderMitre(initialGraph.techniques || []);
       renderAttackPaths(initialGraph.attack_paths || [], initialGraph.target_risk || {});
       renderGraph(initialGraph);
+      renderSelectedFocus();
       fetchDefense();
       if (autoRefresh) startAutoRefresh();
     }
@@ -555,8 +1133,12 @@
       });
     });
     document.getElementById('chatSendBtn').addEventListener('click', sendChat);
+    document.getElementById('defenseSendBtn').addEventListener('click', () => sendDefenseQuery());
     chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') sendChat();
+    });
+    defenseInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendDefenseQuery();
     });
     autoBtn.addEventListener('click', () => {
       autoRefresh = !autoRefresh;

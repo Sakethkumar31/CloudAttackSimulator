@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   neo4j:
     image: neo4j:5
@@ -8,49 +10,16 @@ services:
       - "7687:7687"
     environment:
       NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4jpassword}"
+      NEO4J_USER: "${NEO4J_USER:-neo4j}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:-neo4jpassword}"
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
-      interval: 15s
+      test: ["CMD-SHELL", "cypher-shell -a bolt://localhost:7687 -u \"${NEO4J_USER:-neo4j}\" -p \"${NEO4J_PASSWORD:-neo4jpassword}\" 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
       timeout: 10s
       retries: 30
-      start_period: 60s
-
-  # CALDERA C2 Framework
-  caldera:
-    build:
-      context: ../caldera
-      dockerfile: Dockerfile
-      args:
-        VARIANT: slim
-        TZ: UTC
-    image: caldera:latest
-    container_name: caldera_server
-    restart: unless-stopped
-    ports:
-      - "8888:8888"
-      - "8443:8443"
-      - "7010:7010"
-      - "7011:7011/udp"
-      - "7012:7012"
-      - "8853:8853"
-      - "8022:8022"
-      - "2222:2222"
-    volumes:
-      - caldera_data:/usr/src/app/data
-      - ../caldera/plugins/magma/dist:/usr/src/app/plugins/magma/dist:ro
-      - ../caldera/plugins/sandcat/static:/usr/src/app/plugins/sandcat/static:ro
-      - ./caldera.local.yml:/usr/src/app/conf/local.yml:ro
-    environment:
-      PYTHONUNBUFFERED: "1"
-    healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8888', timeout=5)\" || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 30
-      start_period: 60s
 
   redis:
     image: redis:7-alpine
@@ -86,8 +55,6 @@ services:
     depends_on:
       neo4j:
         condition: service_healthy
-      caldera:
-        condition: service_healthy
 
   sync_worker:
     build:
@@ -96,7 +63,7 @@ services:
     container_name: sync_worker
     restart: unless-stopped
     environment:
-      CALDERA_URL: ${CALDERA_URL:-http://caldera_server:8888}
+      CALDERA_URL: ${CALDERA_URL:-http://host.docker.internal:8888}
       CALDERA_API_KEY: ${CALDERA_API_KEY:-}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -106,8 +73,6 @@ services:
       REQUEST_TIMEOUT_SECONDS: 15
     depends_on:
       redis:
-        condition: service_healthy
-      caldera:
         condition: service_healthy
 
   graph_writer:
@@ -135,10 +100,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
-      caldera:
-        condition: service_healthy
 
 volumes:
   neo4j_data:
   neo4j_logs:
-  caldera_data:
+

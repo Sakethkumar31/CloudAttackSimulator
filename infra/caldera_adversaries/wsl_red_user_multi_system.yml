@@ -1,0 +1,11 @@
+name: WSL Red User Multi-System Adversary
+description: Lab-safe WSL adversary for concurrent red-user activity across multiple agents. Use one CALDERA operation with multiple selected agents to simulate simultaneous discovery and execution from a WSL foothold.
+atomic_ordering:
+- 5951d0ba-ac4d-4873-8517-5ad21398ffed
+- d88649f1-4fe6-4133-aa2e-00533c7d97fb
+- 07b5d669-076f-4a12-a0e8-6e6fdea4d14d
+- 2f102269-659e-481d-b87c-1999cff970ec
+- 46a25637-1044-445e-a7ce-7fd9f70d8ece
+- 2ebd0156-6762-4bf5-aab0-b7ffa21d03fa
+- 16b3f165-4d16-47fe-aebe-8aa8fdaf7e4d
+adversary_id: 9e5ec39b-c0f8-4f65-a7f3-6d8d7f1a9a31

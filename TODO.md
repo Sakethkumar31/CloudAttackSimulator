@@ -1,41 +1,48 @@
-# TODO
+# Manual Sync Fix - Cloud Attack Lab
 
-## Completed
-- Fixed secrets exposure in `.env.phase2` and `caldera.local.yml`
-- Updated `.gitignore` to exclude sensitive config files
-- Created `.example` templates for all config files
-- Updated README with accurate file structure and instructions
-- Fixed docker-compose to work with CALDERA on localhost
-- Updated run_lab.bat with configurable WSL path
-- Cleaned up stray artifact files
+Status: Steps 1-3 Complete ✅
 
-## Running the Stack
+## 1. Verify Neo4j [x] ✅ CONNECTED
+```cmd
+python caldera_neo4j/test.py
+```
+Expected: CONNECTED SUCCESSFULLY
 
-### Clean restart (removes all containers and images):
-```bash
-# From WSL terminal
-cd /home/saketh/cloud-attack-lab
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml down --rmi all --volumes
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml up -d --build
+## 2. Verify Caldera API [x] ✅ AGENTS/OPS DATA FOUND
+```cmd
+curl http://localhost:8888/api/v2/agents
+curl http://localhost:8888/api/v2/operations
+```
+Expected: [] or data
+
+## 3. Run Sync [x] ✅ COMPLETED - DATA WRITTEN TO NEO4J
+```cmd
+cd caldera_neo4j
+python sync.py
+```
+Expected: Starting sync... Sync completed.
+
+## 4. Check Neo4j Data [ ] 
+Neo4j browser http://localhost:7474
+```
+MATCH (n) RETURN n LIMIT 20
 ```
 
-### Or use the helper script:
-```bash
-./infra/restart_clean.sh
+## 5. Start Dashboard [ ] 
+```cmd
+run_dashboard_web.bat
+```
+Expected: Graph shows agents/facts after refresh.
+
+## 6. Generate Data [ ] 
+- Caldera UI http://localhost:8888
+- Create agent, operation → re-run sync.py → dashboard update.
+
+## Continuous Sync [ ] 
+```cmd
+# Terminal 1: caldera server
+# Terminal 2: python caldera_neo4j/sync.py  (loop: while true; do python sync.py; sleep 5; done)
 ```
 
-### From Windows (PowerShell):
-```powershell
-wsl -d Ubuntu-22.04 -- bash -lc "cd /home/saketh/cloud-attack-lab && docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml down --rmi all --volumes && docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml up -d --build"
-```
+Next: Complete step 1, report output.
 
-## Services
-- Neo4j: http://localhost:7474 (bolt: 7687)
-- CALDERA: http://localhost:8888
-- Dashboard: http://localhost:5000
-- Redis: localhost:6379
-
-## Notes
-- CALDERA runs on localhost (not in Docker) - sync_worker connects via host.docker.internal
-- Ensure CALDERA is running on port 8888 before starting the stack
-- Default credentials should be changed in production

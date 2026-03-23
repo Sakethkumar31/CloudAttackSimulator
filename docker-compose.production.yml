@@ -1,0 +1,179 @@
+version: '3.9'
+
+networks:
+  attack-lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+services:
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-replace_with_neo4j_password}
+      NEO4J_apoc_export_file_enabled: 'true'
+      NEO4J_apoc_import_file_enabled: 'true'
+      NEO4J_apoc_http_timeout_connect: 60000
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+    volumes:
+      - neo4j_data:/var/lib/neo4j/data
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.4
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Caldera C2 Framework
+  caldera:
+    image: caldera:latest
+    container_name: caldera
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+      - "7010:7010"
+      - "7011:7011/udp"
+      - "7012:7012"
+      - "8853:8853"
+      - "8022:8022"
+      - "2222:2222"
+    environment:
+      CALDERA_PORT: ${CALDERA_PORT:-8888}
+      CALDERA_HOST: ${CALDERA_HOST:-0.0.0.0}
+      PYTHONUNBUFFERED: ${PYTHONUNBUFFERED:-1}
+      TZ: ${TZ}
+    volumes:
+      - ${CALDERA_WSL_DIR}:/usr/src/app
+      - caldera_data:/usr/src/app/data
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Sync Worker - Event Processing
+  sync-worker:
+    image: cloud-attack-lab-services:latest
+    container_name: sync-worker
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-replace_with_neo4j_password}
+      PYTHONUNBUFFERED: "1"
+    working_dir: /app
+    command: python -u sync_worker/main.py
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.5
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import redis; redis.Redis(host='redis').ping()"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+  # Graph Writer - Neo4j Updates
+  graph-writer:
+    image: cloud-attack-lab-services:latest
+    container_name: graph-writer
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-replace_with_neo4j_password}
+      PYTHONUNBUFFERED: "1"
+    working_dir: /app
+    command: python -u graph_writer/main.py
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.6
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import redis; redis.Redis(host='redis').ping()"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+  # Dashboard Web UI
+  dashboard:
+    image: cloud-attack-lab-dashboard:latest
+    container_name: dashboard
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_ENV: production
+      FLASK_APP: app.py
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-replace_with_neo4j_password}
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      attack-lab:
+        ipv4_address: 172.25.0.7
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  neo4j_data:
+    driver: local
+  redis_data:
+    driver: local
+  caldera_data:
+    driver: local

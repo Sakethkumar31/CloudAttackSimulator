@@ -1,0 +1,9 @@
+{
+  "models": [
+    {
+      "title": "Local Qwen",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:3b"
+    }
+  ]
+}

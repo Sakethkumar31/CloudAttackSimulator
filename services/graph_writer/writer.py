@@ -28,7 +28,7 @@ class Neo4jEventWriter:
             for c in constraints:
                 session.run(c)
 
-    def upsert_agent(self, session, agent):
+    def upsert_agent(self, session, agent, active=True):
         agent_id = agent.get("paw")
         if not agent_id:
             return
@@ -38,13 +38,15 @@ class Neo4jEventWriter:
             SET a.host = $host,
                 a.platform = $platform,
                 a.group = $group,
-                a.trusted = $trusted
+                a.trusted = $trusted,
+                a.active = $active
             """,
             agent_id=agent_id,
             host=agent.get("host"),
             platform=agent.get("platform") or "linux",
             group=agent.get("group") or "red",
             trusted=agent.get("trusted", False),
+            active=bool(active),
         )
 
     def write_event(self, event):
@@ -58,7 +60,7 @@ class Neo4jEventWriter:
             return
 
         with self.driver.session(database="neo4j") as session:
-            self.upsert_agent(session, agent)
+            self.upsert_agent(session, agent, active=True)
 
             session.run(
                 """
@@ -135,7 +137,7 @@ class Neo4jEventWriter:
 
         with self.driver.session(database="neo4j") as session:
             for agent in active_agents:
-                self.upsert_agent(session, agent)
+                self.upsert_agent(session, agent, active=True)
 
             session.run(
                 """
@@ -144,14 +146,6 @@ class Neo4jEventWriter:
                 DETACH DELETE a
                 """,
                 active_agent_ids=active_agent_ids,
-            )
-
-            session.run(
-                """
-                MATCH (f:Fact)
-                WHERE NOT (:Agent)-[:EXECUTED]->(f)
-                DETACH DELETE f
-                """
             )
 
     def reconcile_facts(self, active_fact_ids):

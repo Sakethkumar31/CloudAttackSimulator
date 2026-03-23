@@ -10,8 +10,8 @@ FLAG = os.getenv("CTF_FLAG", "ctf{hi}")
 POINTS = 100
 scores = {}
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 ANSWER_REQUEST_HINTS = (
     "answer",
     "final answer",
@@ -186,26 +186,63 @@ SCOREBOARD_PAGE = BASE_STYLE + """
 """
 
 
-def call_openai(messages):
-    if not OPENAI_API_KEY:
+def _messages_to_gemini_payload(messages):
+    system_parts = []
+    contents = []
+
+    for msg in messages:
+        role = msg.get("role")
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "system":
+            system_parts.append(content)
+            continue
+        gemini_role = "model" if role == "assistant" else "user"
+        contents.append({"role": gemini_role, "parts": [{"text": content}]})
+
+    if system_parts:
+        preamble = "System guidance:\n" + "\n\n".join(system_parts)
+        if contents and contents[0]["role"] == "user":
+            first_text = contents[0]["parts"][0].get("text", "")
+            contents[0]["parts"][0]["text"] = f"{preamble}\n\n{first_text}".strip()
+        else:
+            contents.insert(0, {"role": "user", "parts": [{"text": preamble}]})
+
+    if not contents:
+        contents = [{"role": "user", "parts": [{"text": "Help with cybersecurity tutoring."}]}]
+
+    return contents
+
+
+def call_gemini(messages):
+    if not GEMINI_API_KEY:
         return None
     try:
         r = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
             headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "x-goog-api-key": GEMINI_API_KEY,
+                "x-goog-api-client": "cloud-attack-lab/1.0",
                 "Content-Type": "application/json",
             },
             json={
-                "model": OPENAI_MODEL,
-                "messages": messages,
-                "temperature": 0.35,
-                "max_tokens": 450,
+                "contents": _messages_to_gemini_payload(messages),
+                "generationConfig": {
+                    "temperature": 0.35,
+                    "maxOutputTokens": 450,
+                },
             },
             timeout=20,
         )
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"].strip()
+        payload = r.json()
+        candidates = payload.get("candidates") or []
+        if not candidates:
+            return None
+        parts = (((candidates[0] or {}).get("content") or {}).get("parts") or [])
+        reply = "".join(part.get("text", "") for part in parts if part.get("text")).strip()
+        return reply or None
     except Exception:
         return None
 
@@ -340,7 +377,7 @@ def chat():
     messages.extend(history[-10:])
     messages.append({"role": "user", "content": msg or "Teach me this challenge from basics."})
 
-    reply = call_openai(messages)
+    reply = call_gemini(messages)
     if not reply:
         reply = fallback_tutor(msg or "Teach me this challenge")
     else:

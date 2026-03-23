@@ -17,7 +17,10 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "redops_secure_key")
 # ---------------- NEO4J ----------------
 NEO4J_URI = os.getenv("NEO4J_URI", "neo4j://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "Saketh2004")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "replace_with_neo4j_password")
+CALDERA_URL = os.getenv("CALDERA_URL", "http://caldera:8888").rstrip("/")
+CALDERA_API_KEY = os.getenv("CALDERA_API_KEY", "").strip()
+CALDERA_TIMEOUT = int(os.getenv("CALDERA_TIMEOUT", "10"))
 
 driver = GraphDatabase.driver(
     NEO4J_URI,
@@ -26,13 +29,13 @@ driver = GraphDatabase.driver(
 
 # ---------------- LOGIN ----------------
 USERNAME = os.getenv("DASHBOARD_USER", "socadmin")
-PASSWORD = os.getenv("DASHBOARD_PASS", "redops123")
+PASSWORD = os.getenv("DASHBOARD_PASS", "replace_with_dashboard_password")
 ALLOW_MULTI_USER = os.getenv("ALLOW_MULTI_USER", "1").strip().lower() in {"1", "true", "yes", "on"}
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{3,24}$")
 
-# ---------------- OPENAI ----------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+# ---------------- GEMINI ----------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 VALID_TUTOR_MODES = {"beginner", "intermediate", "expert"}
 
 ANSWER_REQUEST_HINTS = (
@@ -399,6 +402,17 @@ TECHNIQUE_KNOWLEDGE = {
 
 ATTACK_PLAYBOOKS = [
     {
+        "id": "wsl_multi_system_burst",
+        "name": "WSL Multi-System Burst",
+        "required": ["T1059", "T1078", "T1021", "T1041"],
+        "min_match": 2,
+        "severity": "HIGH",
+        "why": "WSL command execution combined with valid-account reuse, lateral movement, and outbound transfer suggests a red user fanning out across multiple systems.",
+        "telemetry": "Windows wsl.exe launches, Linux shell history, remote service auth logs, east-west flow logs, and egress monitoring.",
+        "detection": "Correlate WSL or bash activity with multi-host admin access, concurrent remote sessions, and unusual outbound transfer patterns.",
+        "response": "Contain the WSL-linked endpoint first, revoke reused credentials, restrict remote administration paths, and validate segmentation between affected systems.",
+    },
+    {
         "id": "ransomware_chain",
         "name": "Ransomware Progression",
         "required": ["T1059", "T1003", "T1021", "T1486"],
@@ -455,11 +469,70 @@ ATTACK_PLAYBOOKS = [
     },
 ]
 
+WSL_MULTI_SYSTEM_ADVERSARY = {
+    "id": "9e5ec39b-c0f8-4f65-a7f3-6d8d7f1a9a31",
+    "name": "WSL Red User Multi-System Adversary",
+    "platform": "WSL / Linux",
+    "operation_mode": "Concurrent multi-agent operation",
+    "summary": "Lab-safe adversary model for a red user operating from a WSL foothold and simulating coordinated attacks across multiple systems in the same CALDERA operation.",
+    "caldera_file": "data/adversaries/9e5ec39b-c0f8-4f65-a7f3-6d8d7f1a9a31.yml",
+    "phases": [
+        {
+            "name": "WSL execution foothold",
+            "goal": "Simulate operator command execution from WSL with full telemetry enabled.",
+            "techniques": ["T1059"],
+        },
+        {
+            "name": "Credential or session reuse",
+            "goal": "Emulate controlled access expansion with approved lab identities.",
+            "techniques": ["T1078", "T1078.004"],
+        },
+        {
+            "name": "Multi-system fan-out",
+            "goal": "Run concurrent remote admin or lateral movement actions against more than one agent.",
+            "techniques": ["T1021", "T1047"],
+        },
+        {
+            "name": "Collection and controlled egress",
+            "goal": "Generate safe exfiltration-style telemetry for blue-team response practice.",
+            "techniques": ["T1041", "T1567"],
+        },
+    ],
+    "operation_steps": [
+        "Register or reuse a WSL-backed agent and group it with the Windows/Linux lab systems you want in the same operation.",
+        "Create one red-team operation that targets multiple agents so behaviors appear in parallel instead of one host at a time.",
+        "Keep abilities simulation-safe: discovery, credential-use simulation, lateral movement emulation, and controlled exfiltration signals only.",
+        "Use the dashboard to track per-target risk, likely attack chains, and chatbot guidance for the selected attack focus.",
+    ],
+    "defense_priorities": [
+        "Monitor both Windows and WSL process chains, especially wsl.exe launching bash or Python with network follow-on activity.",
+        "Apply least privilege, MFA, and just-in-time admin access for accounts that can touch multiple systems.",
+        "Segment east-west traffic so one compromised WSL workstation cannot freely reach application and database tiers.",
+        "Alert on unusual remote administration bursts, credential reuse, and new outbound destinations from dual-use admin hosts.",
+    ],
+}
+
 
 def get_ctf_state(user):
-    if user not in ctf_progress:
-        ctf_progress[user] = {"level_index": 0, "score": 0, "attempts": 0}
-    return ctf_progress[user]
+    seed = ctf_progress.get(user, {"level_index": 0, "score": 0, "attempts": 0, "chat_attempts": 0})
+    owner = session.get("ctf_state_user")
+    state = session.get("ctf_state")
+    if owner != user or not isinstance(state, dict):
+        state = dict(seed)
+        session["ctf_state_user"] = user
+        session["ctf_state"] = state
+        session.modified = True
+    if "chat_attempts" not in state:
+        state["chat_attempts"] = 0
+    ctf_progress[user] = dict(state)
+    return state
+
+
+def save_ctf_state(user, state):
+    session["ctf_state_user"] = user
+    session["ctf_state"] = state
+    session.modified = True
+    ctf_progress[user] = dict(state)
 
 
 def _ctf_difficulty_mode(level_name):
@@ -484,33 +557,126 @@ def _valid_student_username(username):
     return bool(USERNAME_PATTERN.fullmatch((username or "").strip()))
 
 
-def call_openai_messages(messages, max_tokens=220, temperature=0.35):
-    if not OPENAI_API_KEY:
+def _caldera_headers():
+    if not CALDERA_API_KEY:
+        return {}
+    return {"KEY": CALDERA_API_KEY, "Content-Type": "application/json"}
+
+
+def fetch_caldera_status():
+    status = {
+        "configured": bool(CALDERA_URL and CALDERA_API_KEY),
+        "connected": False,
+        "url": CALDERA_URL,
+        "operations": 0,
+        "agents": 0,
+        "abilities": 0,
+        "error": None,
+    }
+
+    if not status["configured"]:
+        status["error"] = "Missing CALDERA_URL or CALDERA_API_KEY."
+        return status
+
+    try:
+        ops_res = requests.get(
+            f"{CALDERA_URL}/api/v2/operations",
+            headers=_caldera_headers(),
+            timeout=CALDERA_TIMEOUT,
+        )
+        agents_res = requests.get(
+            f"{CALDERA_URL}/api/v2/agents",
+            headers=_caldera_headers(),
+            timeout=CALDERA_TIMEOUT,
+        )
+        abilities_res = requests.get(
+            f"{CALDERA_URL}/api/v2/abilities",
+            headers=_caldera_headers(),
+            timeout=CALDERA_TIMEOUT,
+        )
+
+        ops_res.raise_for_status()
+        agents_res.raise_for_status()
+        abilities_res.raise_for_status()
+
+        status["connected"] = True
+        status["operations"] = len(ops_res.json() or [])
+        status["agents"] = len(agents_res.json() or [])
+        status["abilities"] = len(abilities_res.json() or [])
+    except Exception as exc:
+        status["error"] = str(exc)
+
+    return status
+
+
+def _messages_to_gemini_payload(messages):
+    system_parts = []
+    contents = []
+
+    for msg in messages:
+        role = msg.get("role")
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "system":
+            system_parts.append(content)
+            continue
+        if role == "assistant":
+            gemini_role = "model"
+        else:
+            gemini_role = "user"
+        contents.append({"role": gemini_role, "parts": [{"text": content}]})
+
+    if system_parts:
+        preamble = "System guidance:\n" + "\n\n".join(system_parts)
+        if contents and contents[0]["role"] == "user":
+            first_text = contents[0]["parts"][0].get("text", "")
+            contents[0]["parts"][0]["text"] = f"{preamble}\n\n{first_text}".strip()
+        else:
+            contents.insert(0, {"role": "user", "parts": [{"text": preamble}]})
+
+    if not contents:
+        contents = [{"role": "user", "parts": [{"text": "Help with cybersecurity tutoring."}]}]
+
+    return contents
+
+
+def call_gemini_messages(messages, max_tokens=220, temperature=0.35):
+    if not GEMINI_API_KEY:
         return None
     try:
+        payload = {
+            "contents": _messages_to_gemini_payload(messages),
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            },
+        }
         res = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
             headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "x-goog-api-key": GEMINI_API_KEY,
+                "x-goog-api-client": "cloud-attack-lab/1.0",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": OPENAI_MODEL,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            },
+            json=payload,
             timeout=20,
         )
         res.raise_for_status()
         payload = res.json()
-        return payload["choices"][0]["message"]["content"].strip()
+        candidates = payload.get("candidates") or []
+        if not candidates:
+            return None
+        parts = (((candidates[0] or {}).get("content") or {}).get("parts") or [])
+        text_parts = [part.get("text", "") for part in parts if part.get("text")]
+        reply = "".join(text_parts).strip()
+        return reply or None
     except Exception:
         return None
 
 
-def call_openai(system_prompt, user_prompt, max_tokens=220):
-    return call_openai_messages(
+def call_gemini(system_prompt, user_prompt, max_tokens=220):
+    return call_gemini_messages(
         [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -569,7 +735,7 @@ def chat_with_memory(channel, system_prompt, user_message, context_block="", max
     messages.extend(history[-10:])
     messages.append({"role": "user", "content": user_message})
 
-    reply = call_openai_messages(messages, max_tokens=max_tokens)
+    reply = call_gemini_messages(messages, max_tokens=max_tokens)
     if reply:
         history.append({"role": "user", "content": user_message})
         history.append({"role": "assistant", "content": reply})
@@ -644,6 +810,30 @@ def fallback_coach(domain, message, context):
             "- Did I use the right command/control for this task?\n"
             "- Did I validate before submitting?"
         )
+    if domain == "defense":
+        risk = context.get("risk", "LOW")
+        focus_title = context.get("focus_title", "current incident")
+        focus_summary = context.get("focus_summary", "No specific attack focus selected.")
+        recommendation = context.get("recommendation", "Start with containment and evidence preservation.")
+        scenario = context.get("scenario", "No strong scenario match yet")
+        techniques = context.get("techniques", [])
+        top = ", ".join(techniques[:4]) if techniques else "No mapped techniques yet"
+        return (
+            f"Topic: Interactive Defense Advisor\n"
+            f"Question: {msg or 'How should I defend against this attack?'}\n\n"
+            f"Selected focus: {focus_title}\n"
+            f"Context: {focus_summary}\n"
+            f"Likely scenario: {scenario}\n"
+            f"Risk: {risk}\n"
+            f"Observed techniques: {top}\n\n"
+            "Suggested defense flow:\n"
+            "1) Contain the most exposed host, account, or path first.\n"
+            "2) Pull the exact telemetry that proves scope and impact.\n"
+            "3) Block the attacker path without destroying forensic evidence.\n"
+            "4) Harden the weak control that allowed the movement.\n"
+            "5) Validate by checking that the same path cannot be replayed.\n\n"
+            f"Priority recommendation:\n- {recommendation}"
+        )
     return (
         f"Topic: Security Tutor\nQuestion: {msg or 'Explain this topic'}\n\n"
         "Use this flow: Understand objective -> Contain risk -> Collect evidence -> Fix root cause -> Validate controls."
@@ -673,6 +863,46 @@ def _wants_direct_answer(text):
     if not msg:
         return False
     return any(token in msg for token in ANSWER_REQUEST_HINTS)
+
+
+def _ctf_required_attempts(mode, level_number):
+    mode = _normalize_mode(mode)
+    if mode == "beginner":
+        return 1
+    if mode == "expert":
+        return 6
+    return 4
+
+
+def _ctf_small_hint(level, attempts, mode):
+    topic = level.get("topic", "the core command intent")
+    base_hint = level.get("hint", "Think about the exact command this task is testing.")
+    answer = (level.get("answer") or "").strip()
+    prefix = answer[:1] if answer else ""
+    length = len(answer) if answer else 0
+
+    mode = _normalize_mode(mode)
+    if mode == "expert":
+        if attempts <= 2:
+            return (
+                f"Twisted hint: this level is about {topic}; pick the tiniest command "
+                "that reveals identity, location, or state without changing anything."
+            )
+        if attempts <= 4:
+            return (
+                "Twisted hint: think of the command defenders run first in triage "
+                "before touching logs, processes, or network flows."
+            )
+        return f"Twisted hint: first letter is `{prefix}`, length is {length}."
+
+    if mode == "intermediate":
+        if attempts <= 1:
+            return f"Direct hint: focus on {topic}."
+        if attempts == 2:
+            return f"Direct hint: {base_hint}"
+        return f"Direct hint: answer starts with `{prefix}` and has {length} characters."
+
+    return f"Hint: {base_hint}"
 
 
 MAZE_LEVELS = ("easy", "medium", "hard")
@@ -901,6 +1131,7 @@ def dashboard():
     if "user" not in session:
         return redirect("/login")
 
+    backend_status = fetch_caldera_status()
     try:
         graph = fetch_graph_data()
         db_error = None
@@ -908,7 +1139,14 @@ def dashboard():
         graph = empty_graph()
         db_error = "Unable to load graph data from Neo4j. Check DB connection."
 
-    return render_template("index.html", graph=graph, db_error=db_error)
+    return render_template("index.html", graph=graph, db_error=db_error, backend_status=backend_status)
+
+
+@app.route("/api/backend_status")
+def api_backend_status():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify(fetch_caldera_status())
 
 
 @app.route("/api/graph")
@@ -939,12 +1177,15 @@ def api_defense():
     try:
         graph = fetch_graph_data(agent_id=agent_id, target=target)
         analysis = generate_defense_recommendations(graph)
+        agent_profiles = build_agent_defense_profiles(graph)
         return jsonify(
             {
                 "techniques": analysis.get("observed_techniques", []),
                 "risk_level": analysis.get("risk_level", "LOW"),
                 "matched_scenarios": analysis.get("matched_scenarios", []),
                 "recommendations": analysis.get("recommendations", []),
+                "agent_profiles": agent_profiles,
+                "adversary_model": build_wsl_adversary_model(graph, analysis),
             }
         )
     except Exception as exc:
@@ -960,6 +1201,14 @@ def api_chat():
     message = (data.get("message") or "").strip()
     agent_id = data.get("agent")
     target = data.get("target")
+    incoming_agent_profile = data.get("agentProfile") or {}
+    focus = data.get("focus") or {}
+    focus_type = (focus.get("type") or "").strip() or "general"
+    focus_title = (focus.get("title") or focus.get("name") or "").strip() or "General incident view"
+    focus_summary = (focus.get("summary") or "").strip()
+    focus_guidance = (focus.get("guidance") or "").strip()
+    focus_target = (focus.get("target") or "").strip()
+    focus_techniques = focus.get("techniques") or []
 
     graph = fetch_graph_data(agent_id=agent_id, target=target)
     top_techniques = [t["id"] for t in graph.get("techniques", [])[:3]]
@@ -969,6 +1218,8 @@ def api_chat():
     top_path_len = top_path.get("length", 0)
     top_path_risk = top_path.get("risk_score", 0)
     defense_analysis = generate_defense_recommendations(graph)
+    agent_profiles = build_agent_defense_profiles(graph)
+    selected_agent_profile = find_agent_profile(agent_profiles, agent_id or incoming_agent_profile.get("agent_id"))
     top_scenario = (defense_analysis.get("matched_scenarios") or [{}])[0]
 
     ai_reply = tutor_response(
@@ -986,6 +1237,16 @@ def api_chat():
             f"Scenario response focus: {top_scenario.get('response', 'N/A')}\n"
             f"Selected agent: {agent_id or 'all'}\n"
             f"Selected target: {target or 'all'}\n"
+            f"Selected attack focus type: {focus_type}\n"
+            f"Selected attack focus title: {focus_title}\n"
+            f"Selected attack focus summary: {focus_summary or 'none'}\n"
+            f"Selected attack focus guidance: {focus_guidance or 'none'}\n"
+            f"Selected attack focus target: {focus_target or 'none'}\n"
+            f"Selected attack focus techniques: {', '.join(focus_techniques) if focus_techniques else 'none'}\n"
+            f"Selected agent profile: {(selected_agent_profile or {}).get('agent_id', 'none')}\n"
+            f"Selected agent risk: {(selected_agent_profile or {}).get('risk_level', 'LOW')} {(selected_agent_profile or {}).get('risk_score', 0)}\n"
+            f"Selected agent techniques: {', '.join((selected_agent_profile or {}).get('techniques', [])) if selected_agent_profile else 'none'}\n"
+            f"Selected agent defenses: {' | '.join((selected_agent_profile or {}).get('recommendations', [])[:2]) if selected_agent_profile else 'none'}\n"
             f"Goal: explain and guide mitigation decisions."
         ),
         teaching_goal="SOC incident handling and mitigation",
@@ -1003,6 +1264,85 @@ def api_chat():
             "top_techniques": top_techniques,
             "top_attack_path": top_path,
             "matched_scenarios": defense_analysis.get("matched_scenarios", []),
+        }
+    )
+
+
+@app.route("/api/defense/advisor", methods=["POST"])
+def api_defense_advisor():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    agent_id = data.get("agent")
+    target = data.get("target")
+    incoming_agent_profile = data.get("agentProfile") or {}
+    focus = data.get("focus") or {}
+    recommendation = (data.get("recommendation") or "").strip()
+
+    focus_title = (focus.get("title") or focus.get("name") or "").strip() or "Current incident"
+    focus_summary = (focus.get("summary") or "").strip() or "No specific attack focus selected."
+    focus_guidance = (focus.get("guidance") or "").strip()
+    focus_target = (focus.get("target") or "").strip()
+    focus_techniques = focus.get("techniques") or []
+
+    graph = fetch_graph_data(agent_id=agent_id, target=target)
+    analysis = generate_defense_recommendations(graph)
+    agent_profiles = build_agent_defense_profiles(graph)
+    selected_agent_profile = find_agent_profile(agent_profiles, agent_id or incoming_agent_profile.get("agent_id"))
+    top_scenario = (analysis.get("matched_scenarios") or [{}])[0]
+    summary = graph.get("summary", {})
+    top_techniques = analysis.get("observed_techniques", [])[:6]
+    attack_paths = graph.get("attack_paths", [])
+
+    ai_reply = tutor_response(
+        "defense",
+        message or "How should I defend against this attack right now?",
+        context_block=(
+            f"Domain: Interactive defense planning\n"
+            f"Current risk: {summary.get('risk_level', 'LOW')} ({summary.get('risk_score', 0)}/100)\n"
+            f"Selected focus title: {focus_title}\n"
+            f"Selected focus summary: {focus_summary}\n"
+            f"Selected focus guidance: {focus_guidance or 'none'}\n"
+            f"Selected focus target: {focus_target or 'all'}\n"
+            f"Selected focus techniques: {', '.join(focus_techniques) if focus_techniques else 'none'}\n"
+            f"Selected recommendation: {recommendation or 'none'}\n"
+            f"Likely scenario: {top_scenario.get('name', 'none')}\n"
+            f"Scenario response: {top_scenario.get('response', 'N/A')}\n"
+            f"Observed techniques: {', '.join(top_techniques) if top_techniques else 'none'}\n"
+            f"Parallel attack paths: {len(attack_paths)}\n"
+            f"Selected agent: {agent_id or 'all'}\n"
+            f"Selected target filter: {target or 'all'}\n"
+            f"Selected agent profile: {(selected_agent_profile or {}).get('agent_id', 'none')}\n"
+            f"Selected agent recommendations: {' | '.join((selected_agent_profile or {}).get('recommendations', [])[:3]) if selected_agent_profile else 'none'}\n"
+            "Answer as a defense advisor with practical sections for containment, detection, hardening, and validation."
+        ),
+        teaching_goal="interactive attack defense",
+    )
+
+    if ai_reply:
+        reply = ai_reply
+    else:
+        reply = fallback_coach(
+            "defense",
+            message,
+            {
+                "risk": summary.get("risk_level", "LOW"),
+                "focus_title": focus_title,
+                "focus_summary": focus_summary,
+                "recommendation": recommendation,
+                "scenario": top_scenario.get("name", "none"),
+                "techniques": top_techniques,
+            },
+        )
+
+    return jsonify(
+        {
+            "reply": reply,
+            "risk_level": summary.get("risk_level", "LOW"),
+            "matched_scenarios": analysis.get("matched_scenarios", []),
+            "recommendations": analysis.get("recommendations", []),
         }
     )
 
@@ -1053,7 +1393,7 @@ def api_maze_insight():
     technique = data.get("technique", "unknown")
     task = data.get("task", "mitigate")
 
-    ai_text = call_openai(
+    ai_text = call_gemini(
         "You are a cybersecurity trainer for beginners.",
         f"Explain {technique} in simple words and provide 4 step-by-step actions to {task}.",
         max_tokens=180,
@@ -1227,7 +1567,7 @@ def ctf_home():
     show_hint = request.args.get("show_hint") == "1"
 
     if state["level_index"] >= len(CTF_LEVELS):
-        ai_text = call_openai(
+        ai_text = call_gemini(
             "You are a SOC learning coach.",
             "Give a short next-step learning path after completing beginner CTF levels.",
             max_tokens=140,
@@ -1262,6 +1602,7 @@ def ctf_submit():
     level = CTF_LEVELS[state["level_index"]]
     submitted = (request.form.get("answer") or "").strip().lower()
     expected = level["answer"].strip().lower()
+    mode = _get_tutor_mode("ctf")
 
     state["attempts"] += 1
 
@@ -1269,9 +1610,12 @@ def ctf_submit():
         state["score"] += 50 * level["level"]
         state["level_index"] += 1
         state["attempts"] = 0
+        state["chat_attempts"] = 0
+        save_ctf_state(user, state)
         return redirect("/ctf")
 
-    msg = "Not correct yet. Read hint and try again."
+    msg = f"Not correct yet. {_ctf_small_hint(level, state['attempts'], mode)}"
+    save_ctf_state(user, state)
     return render_template_string(
         CTF_CHALLENGE_PAGE,
         user=user,
@@ -1297,7 +1641,7 @@ def ctf_insight():
         return redirect("/ctf")
 
     level = CTF_LEVELS[state["level_index"]]
-    ai_text = call_openai(
+    ai_text = call_gemini(
         "You are a CTF mentor.",
         (
             f"Level topic: {level['topic']}\\n"
@@ -1332,16 +1676,49 @@ def ctf_chat():
 
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
+    msg_l = message.lower()
     mode = _get_tutor_mode("ctf")
-    level_mode = _ctf_difficulty_mode(level["name"])
-    effective_mode = mode if mode != "intermediate" else level_mode
+    effective_mode = mode
 
-    if (effective_mode == "beginner" or level["name"].lower() == "easy") and _wants_direct_answer(message):
-        direct = (
-            f"Direct answer for Level {level['level']}: `{level['answer']}`.\n"
-            f"Why: this level focuses on {level['topic']}."
+    if msg_l in {"next", "hint", "help"}:
+        required_attempts = _ctf_required_attempts(effective_mode, level.get("level"))
+        current_attempts = state.get("chat_attempts", 0)
+        return jsonify(
+            {
+                "reply": (
+                    f"Mode: {effective_mode}. Progress: {current_attempts}/{required_attempts} tries.\n"
+                    f"{_ctf_small_hint(level, max(1, current_attempts + 1), effective_mode)}\n"
+                    "Try your best guess in the answer box, then ask again if needed."
+                )
+            }
         )
-        return jsonify({"reply": direct})
+
+    if _wants_direct_answer(message):
+        required_attempts = _ctf_required_attempts(effective_mode, level.get("level"))
+        if effective_mode == "beginner":
+            direct = (
+                f"Direct answer for Level {level['level']}: `{level['answer']}`.\n"
+                f"Why: this level focuses on {level['topic']}."
+            )
+            return jsonify({"reply": direct})
+        state["chat_attempts"] = state.get("chat_attempts", 0) + 1
+        save_ctf_state(user, state)
+        if state["chat_attempts"] >= required_attempts:
+            direct = (
+                f"Direct answer unlocked after {state['chat_attempts']} tries in {effective_mode} mode:\n"
+                f"`{level['answer']}`"
+            )
+            return jsonify({"reply": direct})
+        hint_reply = _ctf_small_hint(level, state["chat_attempts"], effective_mode)
+        return jsonify(
+            {
+                "reply": (
+                    f"Exact answer is disabled in {effective_mode} mode.\n"
+                    f"Need {required_attempts} tries (current: {state['chat_attempts']}).\n"
+                    f"{hint_reply}"
+                )
+            }
+        )
 
     ai_text = tutor_response(
         "ctf",
@@ -1402,6 +1779,8 @@ def fetch_graph_data(agent_id=None, target=None):
             OPTIONAL MATCH (f)-[:NEXT]->(n:Fact)
             WHERE ($target IS NULL OR n IS NULL OR properties(n)['target'] = $target)
             RETURN a.agent_id AS agent,
+                   coalesce(a.active, true) AS aactive,
+                   coalesce(a.trusted, true) AS atrusted,
                    f.fact_id AS fid,
                    f.command AS cmd,
                    f.technique_id AS tech,
@@ -1417,6 +1796,8 @@ def fetch_graph_data(agent_id=None, target=None):
 
         for row in result:
             agent = row["agent"]
+            aactive = row["aactive"]
+            atrusted = row["atrusted"]
             fid = row["fid"]
             cmd = row["cmd"]
             tech = row["tech"]
@@ -1427,7 +1808,15 @@ def fetch_graph_data(agent_id=None, target=None):
             ntarget = row["ntarget"]
 
             if agent not in nodes:
-                nodes[agent] = {"data": {"id": agent, "label": agent, "type": "agent"}}
+                is_active = bool(aactive) and bool(atrusted)
+                nodes[agent] = {
+                    "data": {
+                        "id": agent,
+                        "label": agent,
+                        "type": "agent",
+                        "status": "active" if is_active else "dead",
+                    }
+                }
 
             if fid and fid not in nodes:
                 nodes[fid] = {
@@ -1708,6 +2097,14 @@ def _risk_priority_weight(level):
     return 1
 
 
+def _score_to_risk_level(score):
+    if score >= 70:
+        return "CRITICAL"
+    if score >= 40:
+        return "ELEVATED"
+    return "LOW"
+
+
 def generate_defense_recommendations(graph):
     observed = _collect_observed_techniques(graph)
     attack_paths = graph.get("attack_paths", [])
@@ -1764,6 +2161,187 @@ def generate_defense_recommendations(graph):
         "matched_scenarios": matched_scenarios,
         "recommendations": unique[:18],
     }
+
+
+def build_agent_defense_profiles(graph):
+    node_map = {n["data"]["id"]: n["data"] for n in graph.get("nodes", [])}
+    next_adj = {}
+    agent_roots = {}
+
+    for edge in graph.get("edges", []):
+        data = edge.get("data", {})
+        src = data.get("source")
+        dst = data.get("target")
+        rel = data.get("relation")
+        if rel == "next" and src and dst:
+            next_adj.setdefault(src, []).append(dst)
+        elif rel == "executed" and src and dst:
+            agent_roots.setdefault(src, []).append(dst)
+
+    profiles = []
+
+    for agent_id, agent_data in node_map.items():
+        if agent_data.get("type") != "agent":
+            continue
+
+        roots = list(dict.fromkeys(agent_roots.get(agent_id, [])))
+        fact_ids = set()
+        path_nodes = []
+
+        def walk(curr, path, seen):
+            fact_ids.add(curr)
+            children = next_adj.get(curr, [])
+            if not children:
+                path_nodes.append(path[:])
+                return
+            for nxt in children:
+                if nxt in seen:
+                    continue
+                seen.add(nxt)
+                path.append(nxt)
+                walk(nxt, path, seen)
+                path.pop()
+                seen.remove(nxt)
+
+        for root in roots:
+            walk(root, [root], {root})
+
+        techniques = []
+        seen_techniques = set()
+        targets = []
+        seen_targets = set()
+        commands = []
+
+        for fid in fact_ids:
+            item = node_map.get(fid, {})
+            tech = _normalize_tid(item.get("technique"))
+            target = item.get("target")
+            command = item.get("label")
+            if tech and tech not in seen_techniques:
+                seen_techniques.add(tech)
+                techniques.append(tech)
+            if target and target not in seen_targets:
+                seen_targets.add(target)
+                targets.append(target)
+            if command:
+                commands.append(command)
+
+        attack_paths = []
+        for idx, nodes_in_path in enumerate(path_nodes[:8]):
+            path_techniques = []
+            seen_path_tech = set()
+            for nid in nodes_in_path:
+                tech = _normalize_tid(node_map.get(nid, {}).get("technique"))
+                if tech and tech not in seen_path_tech:
+                    seen_path_tech.add(tech)
+                    path_techniques.append(tech)
+            risk_score = min(100, (len(nodes_in_path) * 10) + (len(path_techniques) * 8))
+            path_targets = [node_map.get(nid, {}).get("target") for nid in nodes_in_path if node_map.get(nid, {}).get("target")]
+            attack_paths.append(
+                {
+                    "id": f"{agent_id}-path-{idx + 1}",
+                    "agents": [agent_id],
+                    "target": Counter(path_targets).most_common(1)[0][0] if path_targets else "unknown",
+                    "length": len(nodes_in_path),
+                    "nodes": nodes_in_path,
+                    "commands": [node_map.get(nid, {}).get("label") for nid in nodes_in_path if node_map.get(nid, {}).get("label")],
+                    "techniques": path_techniques,
+                    "risk_score": risk_score,
+                }
+            )
+
+        matched_scenarios = _match_playbooks(techniques, attack_paths)
+        recommendations = []
+
+        if matched_scenarios:
+            for scenario in matched_scenarios[:2]:
+                recommendations.append(
+                    f"[{agent_id}] {scenario['name']} | contain: {scenario['response']}"
+                )
+                recommendations.append(
+                    f"[{agent_id}] detect: {scenario['detection']}"
+                )
+
+        covered_bases = {_base_tid(tid) for item in matched_scenarios for tid in item.get("matched", [])}
+        for tid in techniques[:4]:
+            kb = TECHNIQUE_KNOWLEDGE.get(tid) or TECHNIQUE_KNOWLEDGE.get(_base_tid(tid))
+            if not kb or _base_tid(tid) in covered_bases:
+                continue
+            recommendations.append(
+                f"[{agent_id}] {tid} | telemetry: {kb['telemetry']} | respond: {kb['response']}"
+            )
+
+        if not recommendations:
+            status = agent_data.get("status", "active")
+            if roots:
+                recommendations = [
+                    f"[{agent_id}] Review host timeline, auth events, and outbound traffic before broad containment.",
+                    f"[{agent_id}] Validate local persistence, admin sessions, and reachable targets from this {'inactive' if status == 'dead' else 'active'} agent.",
+                ]
+            else:
+                recommendations = [
+                    f"[{agent_id}] No executed links yet. Keep baseline monitoring, process lineage, and auth telemetry enabled.",
+                    f"[{agent_id}] Use this agent as a comparison baseline for suspicious peers until activity appears.",
+                ]
+
+        risk_score = min(100, (len(fact_ids) * 8) + (len(techniques) * 10) + (len(roots) * 6))
+        risk_level = _score_to_risk_level(risk_score)
+        profiles.append(
+            {
+                "agent_id": agent_id,
+                "status": agent_data.get("status", "active"),
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "techniques": techniques,
+                "targets": targets,
+                "commands": commands[:6],
+                "matched_scenarios": matched_scenarios,
+                "recommendations": recommendations[:8],
+                "attack_paths": attack_paths[:4],
+                "root_count": len(roots),
+            }
+        )
+
+    profiles.sort(key=lambda item: (item["risk_score"], len(item.get("techniques", []))), reverse=True)
+    return profiles
+
+
+def find_agent_profile(agent_profiles, agent_id=None):
+    if not agent_profiles:
+        return None
+    if agent_id:
+        for profile in agent_profiles:
+            if profile.get("agent_id") == agent_id:
+                return profile
+    return agent_profiles[0]
+
+
+def build_wsl_adversary_model(graph, analysis=None):
+    analysis = analysis or {}
+    summary = graph.get("summary", {})
+    matched_scenarios = analysis.get("matched_scenarios", [])
+    observed = analysis.get("observed_techniques") or _collect_observed_techniques(graph)
+    filters = graph.get("filters", {})
+    active_agents = filters.get("agents", [])[:6]
+    active_targets = filters.get("targets", [])[:6]
+    attack_paths = graph.get("attack_paths", [])
+
+    model = dict(WSL_MULTI_SYSTEM_ADVERSARY)
+    model["phases"] = [dict(item) for item in WSL_MULTI_SYSTEM_ADVERSARY["phases"]]
+    model["operation_steps"] = list(WSL_MULTI_SYSTEM_ADVERSARY["operation_steps"])
+    model["defense_priorities"] = list(WSL_MULTI_SYSTEM_ADVERSARY["defense_priorities"])
+    model["live_context"] = {
+        "risk_level": summary.get("risk_level", "LOW"),
+        "risk_score": summary.get("risk_score", 0),
+        "active_agent_count": summary.get("agent_count", 0),
+        "tracked_target_count": len(active_targets),
+        "parallel_attack_paths": len(attack_paths),
+        "active_agents": active_agents or ["wsl-operator", "app-host", "db-host"],
+        "active_targets": active_targets or ["identity", "application", "database"],
+        "highlighted_techniques": observed[:5] or ["T1059", "T1078", "T1021", "T1041"],
+        "matched_scenarios": [item.get("name") for item in matched_scenarios[:3]],
+    }
+    return model
 
 
 def empty_graph():

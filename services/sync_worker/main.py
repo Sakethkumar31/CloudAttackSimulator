@@ -40,6 +40,23 @@ def get_agents():
     return res.json()
 
 
+def unwrap_items(payload, preferred_keys):
+    if isinstance(payload, list):
+        return payload
+
+    if isinstance(payload, dict):
+        for key in preferred_keys:
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+
+        for value in payload.values():
+            if isinstance(value, list):
+                return value
+
+    return []
+
+
 def event_id_for(link):
     raw = f"{link.get('paw','')}-{link.get('ability', {}).get('ability_id','')}-{link.get('finish','')}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -110,9 +127,16 @@ def publish_events(r, events):
 
 def collect_executed_links(operations):
     events = []
-    for op in operations:
+    for op in unwrap_items(operations, ["operations", "items", "data"]):
+        if not isinstance(op, dict):
+            continue
+        state = str(op.get("state", "")).strip().lower()
+        if state in {"finished", "cleanup", "out_of_time", "closed", "archived"}:
+            continue
         op_id = op.get("id")
         for link in op.get("chain", []):
+            if not isinstance(link, dict):
+                continue
             if link.get("status") != 0:
                 continue
             if not link.get("paw"):
@@ -123,8 +147,15 @@ def collect_executed_links(operations):
 
 def collect_active_fact_ids(operations):
     fact_ids = []
-    for op in operations:
+    for op in unwrap_items(operations, ["operations", "items", "data"]):
+        if not isinstance(op, dict):
+            continue
+        state = str(op.get("state", "")).strip().lower()
+        if state in {"finished", "cleanup", "out_of_time", "closed", "archived"}:
+            continue
         for link in op.get("chain", []):
+            if not isinstance(link, dict):
+                continue
             if link.get("status") != 0:
                 continue
             if not link.get("paw"):
@@ -161,6 +192,7 @@ def main():
         try:
             operations = get_operations()
             agents = get_agents()
+            agent_items = unwrap_items(agents, ["agents", "items", "data"])
 
             events = collect_executed_links(operations)
             fresh = []
@@ -175,7 +207,7 @@ def main():
             # Always publish agent snapshot every poll for eventual consistency.
             # This guarantees agent create/delete reconciliation even if a prior
             # snapshot failed downstream once.
-            snapshot_event = build_agent_snapshot_event(agents)
+            snapshot_event = build_agent_snapshot_event(agent_items)
             fresh.append(snapshot_event)
             fresh.append(build_operation_snapshot_event(operations))
 
