@@ -1,4 +1,4 @@
-version: '3.9'
+name: cloud-attack-lab
 
 networks:
   attack-lab:
@@ -23,7 +23,8 @@ services:
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1g
     volumes:
-      - neo4j_data:/var/lib/neo4j/data
+      - neo4j_data:/data
+      - neo4j_logs:/logs
     networks:
       attack-lab:
         ipv4_address: 172.25.0.3
@@ -172,6 +173,8 @@ services:
 
 volumes:
   neo4j_data:
+    driver: local
+  neo4j_logs:
     driver: local
   redis_data:
     driver: local

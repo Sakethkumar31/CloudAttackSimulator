@@ -1,48 +1,29 @@
-# Manual Sync Fix - Cloud Attack Lab
+# Cloud Attack Lab Dashboard Enhancement - BLACKBOXAI
+Generated: 2024
 
-Status: Steps 1-3 Complete ✅
+## Approved Plan Progress
+**Status**: ✅ PLAN APPROVED - Implementing graph fix + UI polish
 
-## 1. Verify Neo4j [x] ✅ CONNECTED
-```cmd
-python caldera_neo4j/test.py
-```
-Expected: CONNECTED SUCCESSFULLY
+## Step-by-Step Implementation
+### Phase 1: Core Fixes (Graph Display + Loading)
+- [x] Create TODO.md tracking
+- [ ] Add loading spinner/fallback to index.html graph
+- [ ] Extract inline CSS/JS to static/ files
+- [ ] Add demo-data endpoint in app.py
 
-## 2. Verify Caldera API [x] ✅ AGENTS/OPS DATA FOUND
-```cmd
-curl http://localhost:8888/api/v2/agents
-curl http://localhost:8888/api/v2/operations
-```
-Expected: [] or data
+### Phase 2: Visual Polish ("Make Great")
+- [ ] Theme switcher (cyberpunk/neon/matrix)
+- [ ] Particle background canvas
+- [ ] Icons (Heroicons CDN + custom)
+- [ ] Skeleton loaders for panels
+- [ ] Enhanced animations/transitions
 
-## 3. Run Sync [x] ✅ COMPLETED - DATA WRITTEN TO NEO4J
-```cmd
-cd caldera_neo4j
-python sync.py
-```
-Expected: Starting sync... Sync completed.
+### Phase 3: Test & Demo
+- [ ] Verify graph renders sample data
+- [ ] Responsive/mobile polish
+- [ ] Restart dashboard & test full flow
 
-## 4. Check Neo4j Data [ ] 
-Neo4j browser http://localhost:7474
-```
-MATCH (n) RETURN n LIMIT 20
-```
+## Next Command
+Run `cd dashboard_web && flask run` after edits to test.
 
-## 5. Start Dashboard [ ] 
-```cmd
-run_dashboard_web.bat
-```
-Expected: Graph shows agents/facts after refresh.
-
-## 6. Generate Data [ ] 
-- Caldera UI http://localhost:8888
-- Create agent, operation → re-run sync.py → dashboard update.
-
-## Continuous Sync [ ] 
-```cmd
-# Terminal 1: caldera server
-# Terminal 2: python caldera_neo4j/sync.py  (loop: while true; do python sync.py; sleep 5; done)
-```
-
-Next: Complete step 1, report output.
-
+**Current Step**: 1/12 - Graph loading state added

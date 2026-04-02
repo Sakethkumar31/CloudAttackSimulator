@@ -47,7 +47,20 @@ def write_agent(agent):
     SET a.host = $host,
         a.platform = $platform,
         a.group = $group,
-        a.trusted = $trusted
+        a.trusted = $trusted,
+        a.display_name = $display_name,
+        a.username = $username,
+        a.privilege = $privilege,
+        a.last_seen = $last_seen,
+        a.created = $created,
+        a.sleep_min = $sleep_min,
+        a.sleep_max = $sleep_max,
+        a.watchdog = $watchdog,
+        a.contact = $contact,
+        a.pending_contact = $pending_contact,
+        a.host_ip_addrs = $host_ip_addrs,
+        a.status = $status,
+        a.active = $active
     """
 
     with driver.session() as session:
@@ -57,7 +70,20 @@ def write_agent(agent):
             host=agent.get("host"),
             platform=agent.get("platform"),
             group=agent.get("group"),
-            trusted=agent.get("trusted")
+            trusted=agent.get("trusted"),
+            display_name=agent.get("display_name") or agent_id,
+            username=agent.get("username"),
+            privilege=agent.get("privilege"),
+            last_seen=agent.get("last_seen"),
+            created=agent.get("created"),
+            sleep_min=agent.get("sleep_min"),
+            sleep_max=agent.get("sleep_max"),
+            watchdog=agent.get("watchdog"),
+            contact=agent.get("contact"),
+            pending_contact=agent.get("pending_contact"),
+            host_ip_addrs=agent.get("host_ip_addrs") or [],
+            status=agent.get("status") or "unknown",
+            active=bool(agent.get("active", True)),
         )
 
     return agent_id
@@ -81,7 +107,9 @@ def write_fact(link):
         f.status = $status,
         f.pid = $pid,
         f.timestamp = $timestamp,
-        f.command = $command
+        f.command = $command,
+        f.target = $target,
+        f.operation_id = $operation_id
     """
 
     with driver.session() as session:
@@ -92,7 +120,9 @@ def write_fact(link):
             status=link.get("status"),
             pid=link.get("pid"),
             timestamp=link.get("finish"),
-            command=link.get("command")
+            command=link.get("plaintext_command") or link.get("command") or link.get("ability", {}).get("name"),
+            target=link.get("target"),
+            operation_id=link.get("operation_id"),
         )
 
     return fact_id
@@ -143,6 +173,11 @@ def link_fact_to_technique(fact_id, technique_id):
 
 def build_timeline_for_agent(agent_id):
     query = """
+    MATCH (:Agent {agent_id: $agent_id})-[:EXECUTED]->(:Fact)-[r:NEXT]->(:Fact)<-[:EXECUTED]-(:Agent {agent_id: $agent_id})
+    DELETE r
+    """
+
+    rebuild = """
     MATCH (a:Agent {agent_id: $agent_id})-[:EXECUTED]->(f:Fact)
     WITH f
     ORDER BY f.timestamp, f.fact_id
@@ -154,3 +189,42 @@ def build_timeline_for_agent(agent_id):
 
     with driver.session() as session:
         session.run(query, agent_id=agent_id)
+        session.run(rebuild, agent_id=agent_id)
+
+
+def reconcile_agents(current_agent_ids):
+    with driver.session() as session:
+        session.run(
+            """
+            MATCH (a:Agent)
+            WHERE NOT a.agent_id IN $current_agent_ids
+            DETACH DELETE a
+            """,
+            current_agent_ids=current_agent_ids,
+        )
+
+
+def reconcile_facts(current_fact_ids):
+    with driver.session() as session:
+        session.run(
+            """
+            MATCH (f:Fact)
+            WHERE NOT f.fact_id IN $current_fact_ids
+            DETACH DELETE f
+            """,
+            current_fact_ids=current_fact_ids,
+        )
+        session.run(
+            """
+            MATCH (t:Technique)
+            WHERE NOT (:Fact)-[:USES]->(t)
+            DETACH DELETE t
+            """
+        )
+        session.run(
+            """
+            MATCH (ta:Tactic)
+            WHERE NOT (:Technique)-[:PART_OF]->(ta)
+            DETACH DELETE ta
+            """
+        )

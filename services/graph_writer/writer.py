@@ -39,7 +39,18 @@ class Neo4jEventWriter:
                 a.platform = $platform,
                 a.group = $group,
                 a.trusted = $trusted,
-                a.active = $active
+                a.active = $active,
+                a.display_name = $display_name,
+                a.username = $username,
+                a.privilege = $privilege,
+                a.last_seen = $last_seen,
+                a.created = $created,
+                a.sleep_min = $sleep_min,
+                a.sleep_max = $sleep_max,
+                a.watchdog = $watchdog,
+                a.contact = $contact,
+                a.pending_contact = $pending_contact,
+                a.host_ip_addrs = $host_ip_addrs
             """,
             agent_id=agent_id,
             host=agent.get("host"),
@@ -47,6 +58,17 @@ class Neo4jEventWriter:
             group=agent.get("group") or "red",
             trusted=agent.get("trusted", False),
             active=bool(active),
+            display_name=agent.get("display_name") or agent_id,
+            username=agent.get("username"),
+            privilege=agent.get("privilege"),
+            last_seen=agent.get("last_seen"),
+            created=agent.get("created"),
+            sleep_min=agent.get("sleep_min"),
+            sleep_max=agent.get("sleep_max"),
+            watchdog=agent.get("watchdog"),
+            contact=agent.get("contact"),
+            pending_contact=agent.get("pending_contact"),
+            host_ip_addrs=agent.get("host_ip_addrs") or [],
         )
 
     def write_event(self, event):

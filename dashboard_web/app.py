@@ -1,7 +1,10 @@
 ﻿import os
 import sys
 import re
+import ipaddress
+import time
 from collections import Counter
+from datetime import datetime, timezone
 
 import requests
 from flask import Flask, jsonify, redirect, render_template, render_template_string, request, session, url_for
@@ -21,11 +24,22 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "replace_with_neo4j_password")
 CALDERA_URL = os.getenv("CALDERA_URL", "http://caldera:8888").rstrip("/")
 CALDERA_API_KEY = os.getenv("CALDERA_API_KEY", "").strip()
 CALDERA_TIMEOUT = int(os.getenv("CALDERA_TIMEOUT", "10"))
+GEOIP_URL = os.getenv("GEOIP_URL", "https://ipapi.co/{ip}/json/").strip()
+GEOIP_API_KEY = os.getenv("GEOIP_API_KEY", "").strip()
+GEOIP_PROVIDER_LABEL = os.getenv("GEOIP_PROVIDER_LABEL", "ipapi.co").strip() or "GeoIP"
+GEOIP_CACHE_SECONDS = int(os.getenv("GEOIP_CACHE_SECONDS", "1800"))
+PUBLIC_IP_LOOKUP_URL = os.getenv("PUBLIC_IP_LOOKUP_URL", "https://api.ipify.org?format=json").strip()
+ANALYST_LOCATION_QUERY = os.getenv("ANALYST_LOCATION_QUERY", "").strip()
+ANALYST_LATITUDE = os.getenv("ANALYST_LATITUDE", "").strip()
+ANALYST_LONGITUDE = os.getenv("ANALYST_LONGITUDE", "").strip()
+GEOCODE_URL = os.getenv("GEOCODE_URL", "https://nominatim.openstreetmap.org/search").strip()
+GEOCODE_USER_AGENT = os.getenv("GEOCODE_USER_AGENT", "cloud-attack-lab-dashboard/1.0").strip()
 
 driver = GraphDatabase.driver(
     NEO4J_URI,
     auth=(NEO4J_USER, NEO4J_PASSWORD),
 )
+geo_cache = {}
 
 # ---------------- LOGIN ----------------
 USERNAME = os.getenv("DASHBOARD_USER", "socadmin")
@@ -48,6 +62,8 @@ ANSWER_REQUEST_HINTS = (
     "what is the answer",
     "solve it for me",
 )
+GREETING_TOKENS = {"hi", "hello", "hey", "good morning", "good afternoon", "good evening", "yo"}
+THANKS_TOKENS = {"thanks", "thank you", "thx"}
 
 # ---------------- CTF (embedded in same app) ----------------
 ctf_progress = {}
@@ -137,15 +153,16 @@ CTF_LEVELS = [
 
 CTF_STYLE = """
 <style>
-body{margin:0;background:#070b12;color:#d6e9ff;font-family:Consolas,monospace;overflow-x:hidden}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+body{margin:0;background:#070b12;color:#d6e9ff;font-family:'Space Grotesk',sans-serif;overflow-x:hidden}
 .fx-grid{position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(79,247,176,.08) 1px, transparent 1px),linear-gradient(90deg, rgba(79,247,176,.08) 1px, transparent 1px);background-size:26px 26px;opacity:.25}
 .fx-scan{position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 0%,rgba(79,247,176,.09) 50%,transparent 100%);background-size:100% 6px;mix-blend-mode:screen;animation:scan 6s linear infinite}
 @keyframes scan{from{transform:translateY(-12%)}to{transform:translateY(12%)}}
-.wrap{max-width:780px;margin:26px auto;padding:16px;position:relative;z-index:2}
-.card{background:rgba(12,20,34,.92);border:1px solid #2d4b73;padding:16px;border-radius:10px;box-shadow:0 0 22px rgba(88,170,255,.18)}
+.wrap{max-width:980px;margin:26px auto;padding:16px;position:relative;z-index:2}
+.card{background:rgba(12,20,34,.92);border:1px solid #2d4b73;padding:18px;border-radius:18px;box-shadow:0 0 22px rgba(88,170,255,.18)}
 h2{margin-top:0;color:#4ff7b0;text-shadow:0 0 8px rgba(79,247,176,.45)}
-input{width:100%;padding:10px;background:#08111f;color:#d6e9ff;border:1px solid #2a4260}
-button{margin-top:10px;padding:10px;background:#102741;color:#d6e9ff;border:1px solid #2f5f95;cursor:pointer}
+input,select{width:100%;padding:10px;background:#08111f;color:#d6e9ff;border:1px solid #2a4260;border-radius:10px;font-family:'IBM Plex Mono',monospace}
+button{margin-top:10px;padding:10px;background:#102741;color:#d6e9ff;border:1px solid #2f5f95;cursor:pointer;border-radius:10px;font-family:'IBM Plex Mono',monospace}
 button:hover{box-shadow:0 0 14px rgba(79,247,176,.25)}
 a{color:#7fe6ff}
 small{color:#9ec7e6}
@@ -153,9 +170,24 @@ table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{padding:8px;border-bottom:1px solid #223650;text-align:left}
 .ok{color:#84f6b6}
 .bad{color:#ff8a8a}
-.ai{margin-top:12px;border:1px solid #2a4260;background:#08111f;padding:10px;white-space:pre-line}
+.ai{margin-top:12px;border:1px solid #2a4260;background:#08111f;padding:12px;white-space:pre-line;border-radius:14px}
 .switcher{display:flex;justify-content:flex-end;margin-bottom:8px;gap:8px}
 .switcher button{margin-top:0;padding:6px 8px;font-size:12px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+.section{border:1px solid rgba(88,170,255,.18);background:rgba(8,17,31,.75);padding:14px;border-radius:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chip{border:1px solid rgba(88,170,255,.25);background:rgba(16,39,65,.6);padding:6px 8px;border-radius:999px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+.cta{display:flex;gap:8px;flex-wrap:wrap}
+.chat-log{display:flex;flex-direction:column;gap:8px;max-height:210px;overflow:auto;margin-top:10px}
+.msg{max-width:92%;padding:10px 12px;border-radius:14px;line-height:1.6;white-space:pre-line}
+.msg.user{align-self:flex-end;background:rgba(79,247,176,.12);border:1px solid rgba(79,247,176,.25)}
+.msg.bot{align-self:flex-start;background:rgba(88,170,255,.12);border:1px solid rgba(88,170,255,.22)}
+.speaker{display:block;margin-bottom:6px;color:#ffcb65;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-family:'IBM Plex Mono',monospace}
+.quick-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.quick-row button{margin-top:0;padding:8px 10px;font-size:11px}
+.answer-form{display:flex;gap:8px;align-items:center}
+.answer-form input{flex:1}
+@media (max-width: 860px){.hero{grid-template-columns:1fr}.answer-form{flex-direction:column;align-items:stretch}}
 body.hacker-green .card{border-color:#2d6b4d;box-shadow:0 0 22px rgba(79,247,176,.22)}
 body.hacker-green h2{color:#4ff7b0}
 body.hacker-green .fx-grid{background-image:linear-gradient(rgba(79,247,176,.08) 1px, transparent 1px),linear-gradient(90deg, rgba(79,247,176,.08) 1px, transparent 1px)}
@@ -185,56 +217,91 @@ CTF_CHALLENGE_PAGE = CTF_STYLE + """
 <div class="wrap"><div class="card">
 <div class="switcher"><button type="button" onclick="toggleTheme()">Switch Theme</button></div>
 <h2>Cloud Attack Path Simulator - CTF Level {{ level.level }} ({{ level.name }})</h2>
-<p>User: <b>{{ user }}</b></p>
-<p><b>Task:</b> {{ level.question }}</p>
-<small>Type your answer in simple words. Not case-sensitive.</small>
-<p><b>Basic Operations:</b> Recon -> Detect -> Contain -> Recover</p>
-<ul>
-  <li><small><b>Recon:</b> understand attacker action and target.</small></li>
-  <li><small><b>Detect:</b> identify suspicious behavior in logs.</small></li>
-  <li><small><b>Contain:</b> isolate affected host/account quickly.</small></li>
-  <li><small><b>Recover:</b> patch root cause and validate controls.</small></li>
-</ul>
-<form method="post" action="/ctf/submit">
-  <input name="answer" placeholder="Enter answer">
-  <button type="submit">Submit</button>
-</form>
-<form method="get" action="/ctf" style="margin-top:8px;">
-  <input type="hidden" name="show_hint" value="1">
-  <button type="submit">Show Hint</button>
-</form>
-<form method="post" action="/ctf/insight" style="margin-top:8px;">
-  <button type="submit">Get AI Insight For This Level</button>
-</form>
-{% if show_hint %}<p><b>Hint:</b> {{ level.hint }}</p>{% endif %}
-{% if message %}<p class="{{ 'ok' if success else 'bad' }}">{{ message }}</p>{% endif %}
-<p>Score: <b>{{ score }}</b> | Attempts on this level: <b>{{ attempts }}</b></p>
-{% if ai_text %}<div class="ai"><b>AI Insight:</b> {{ ai_text }}</div>{% endif %}
-<div class="ai">
-  <b>CTF Chatbot:</b>
-  <div style="margin-top:8px;">
-    <select id="ctfTutorMode">
-      <option value="beginner">Tutor: Beginner</option>
-      <option value="intermediate" selected>Tutor: Intermediate</option>
-      <option value="expert">Tutor: Expert</option>
-    </select>
+<div class="chips">
+  <div class="chip">Operator: {{ user }}</div>
+  <div class="chip">Score: {{ score }}</div>
+  <div class="chip">Attempts: {{ attempts }}</div>
+  <div class="chip">Topic: {{ level.topic }}</div>
+</div>
+<div class="hero">
+  <div class="section">
+    <p><b>Mission brief:</b> {{ level.question }}</p>
+    <small>Answer in simple words. The assistant can coach you without spoiling the flow unless you push for a direct answer.</small>
+    <div class="chips">
+      <div class="chip">Recon</div>
+      <div class="chip">Detect</div>
+      <div class="chip">Contain</div>
+      <div class="chip">Recover</div>
+    </div>
+    <form method="post" action="/ctf/submit" class="answer-form">
+      <input name="answer" placeholder="Enter your answer">
+      <button type="submit">Submit</button>
+    </form>
+    <div class="cta">
+      <form method="get" action="/ctf">
+        <input type="hidden" name="show_hint" value="1">
+        <button type="submit">Show Hint</button>
+      </form>
+      <form method="post" action="/ctf/insight">
+        <button type="submit">Get AI Insight</button>
+      </form>
+    </div>
+    {% if show_hint %}<p><b>Hint:</b> {{ level.hint }}</p>{% endif %}
+    {% if message %}<p class="{{ 'ok' if success else 'bad' }}">{{ message }}</p>{% endif %}
+    {% if ai_text %}<div class="ai"><b>AI Insight:</b> {{ ai_text }}</div>{% endif %}
   </div>
-  <div id="ctfChatLog">Bot: Ask me directly about this level, attack type, or mitigation steps.</div>
+  <div class="section">
+    <b>CTF Chatbot</b>
+    <div style="margin-top:8px;">
+      <select id="ctfTutorMode">
+        <option value="beginner">Tutor: Beginner</option>
+        <option value="intermediate" selected>Tutor: Intermediate</option>
+        <option value="expert">Tutor: Expert</option>
+      </select>
+    </div>
+  <div class="quick-row">
+    <button type="button" onclick="sendPreset('Hi')">Hi</button>
+    <button type="button" onclick="sendPreset('Explain this challenge in plain English')">Explain</button>
+    <button type="button" onclick="sendPreset('Give me a safe hint for the next step')">Hint</button>
+  </div>
+  <div id="ctfChatLog" class="chat-log"></div>
   <div style="display:flex;gap:6px;margin-top:8px;">
     <input id="ctfChatInput" placeholder="Ask: how to solve this level safely?">
     <button type="button" onclick="sendCtcChat()">Ask</button>
   </div>
 </div>
+</div>
 <a href="/ctf/scoreboard">View scoreboard</a> |
 <a href="/learn/maze">Back to maze</a>
 </div></div>
 <script>
+function esc(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function appendCtfMessage(speaker, text, role) {
+  const log = document.getElementById('ctfChatLog');
+  const entry = document.createElement('div');
+  entry.className = `msg ${role}`;
+  entry.innerHTML = `<span class="speaker">${esc(speaker)}</span><div>${esc(text)}</div>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+function initCtfChat() {
+  const log = document.getElementById('ctfChatLog');
+  if (!log) return;
+  log.innerHTML = '';
+  appendCtfMessage('Bot', 'Ask me about the challenge, the technique, or the safest reasoning path to the answer.', 'bot');
+}
 async function sendCtcChat() {
   const input = document.getElementById('ctfChatInput');
-  const log = document.getElementById('ctfChatLog');
   const msg = (input.value || '').trim();
   if (!msg) return;
-  log.textContent += "\\nYou: " + msg;
+  appendCtfMessage('You', msg, 'user');
   input.value = "";
   const res = await fetch('/ctf/chat', {
     method: 'POST',
@@ -242,7 +309,11 @@ async function sendCtcChat() {
     body: JSON.stringify({message: msg})
   });
   const data = await res.json();
-  log.textContent += "\\nBot: " + (data.reply || 'No response');
+  appendCtfMessage('Bot', data.reply || 'No response', 'bot');
+}
+function sendPreset(text) {
+  document.getElementById('ctfChatInput').value = text;
+  sendCtcChat();
 }
 async function loadCtfTutorMode() {
   const res = await fetch('/api/tutor_mode?module=ctf');
@@ -263,6 +334,7 @@ document.addEventListener('keydown', function(e){
   }
 });
 document.addEventListener('DOMContentLoaded', function(){
+  initCtfChat();
   loadCtfTutorMode();
   const el = document.getElementById('ctfTutorMode');
   if (el) el.addEventListener('change', saveCtfTutorMode);
@@ -563,6 +635,426 @@ def _caldera_headers():
     return {"KEY": CALDERA_API_KEY, "Content-Type": "application/json"}
 
 
+from functools import wraps
+
+
+def unwrap_items(payload, preferred_keys=("agents", "operations", "items", "data")):
+    if isinstance(payload, list):
+        return payload
+
+    if isinstance(payload, dict):
+        for key in preferred_keys:
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+
+        for value in payload.values():
+            if isinstance(value, list):
+                return value
+
+    return []
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _agent_status(agent, now=None):
+    now = now or datetime.now(timezone.utc)
+    last_seen = _parse_iso_datetime(agent.get("last_seen"))
+    if not last_seen:
+        return "unknown"
+
+    sleep_min = int(agent.get("sleep_min") or 0)
+    sleep_max = int(agent.get("sleep_max") or 0)
+    watchdog = int(agent.get("watchdog") or 0)
+    elapsed_ms = max(0, int((now - last_seen).total_seconds() * 1000))
+    is_alive = elapsed_ms < (sleep_max * 1000)
+
+    if elapsed_ms <= 60000 and sleep_min == 3 and sleep_max == 3 and watchdog == 1:
+        return "pending kill"
+    return "alive" if (elapsed_ms <= 60000 or is_alive) else "dead"
+
+
+def _caldera_request(path):
+    res = requests.get(
+        f"{CALDERA_URL}{path}",
+        headers=_caldera_headers(),
+        timeout=CALDERA_TIMEOUT,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def get_caldera_agents():
+    payload = _caldera_request("/api/v2/agents")
+    agents = unwrap_items(payload, ("agents", "items", "data"))
+    now = datetime.now(timezone.utc)
+    enriched = []
+
+    for agent in agents:
+        if not isinstance(agent, dict) or not agent.get("paw"):
+            continue
+        agent_copy = dict(agent)
+        status = _agent_status(agent_copy, now=now)
+        agent_copy["status"] = status
+        agent_copy["is_alive"] = status in {"alive", "pending kill"}
+        agent_copy["display_name"] = agent_copy.get("display_name") or agent_copy.get("paw")
+        enriched.append(agent_copy)
+
+    enriched.sort(
+        key=lambda item: (
+            {"alive": 0, "pending kill": 1, "dead": 2}.get(item.get("status"), 3),
+            item.get("last_seen") or "",
+        ),
+        reverse=False,
+    )
+    return enriched
+
+
+def get_caldera_operations():
+    payload = _caldera_request("/api/v2/operations")
+    operations = unwrap_items(payload, ("operations", "items", "data"))
+    return [item for item in operations if isinstance(item, dict)]
+
+
+def _is_public_ip(ip_value):
+    try:
+        parsed = ipaddress.ip_address(str(ip_value))
+    except ValueError:
+        return False
+
+    return not (
+        parsed.is_private
+        or parsed.is_loopback
+        or parsed.is_reserved
+        or parsed.is_link_local
+        or parsed.is_multicast
+        or parsed.is_unspecified
+    )
+
+
+def _extract_agent_ips(agent):
+    values = []
+    for raw in agent.get("host_ip_addrs") or []:
+        value = str(raw).strip()
+        if value and value not in values:
+            values.append(value)
+    return values
+
+
+def _parse_geo_payload(ip_address_value, payload):
+    if not isinstance(payload, dict):
+        return None
+
+    lat = payload.get("latitude", payload.get("lat"))
+    lon = payload.get("longitude", payload.get("lon"))
+    if lat in (None, "") or lon in (None, ""):
+        return None
+
+    try:
+        latitude = float(lat)
+        longitude = float(lon)
+    except (TypeError, ValueError):
+        return None
+
+    return {
+        "ip": ip_address_value,
+        "latitude": latitude,
+        "longitude": longitude,
+        "city": payload.get("city") or payload.get("town") or "",
+        "region": payload.get("region") or payload.get("region_name") or payload.get("state_prov") or "",
+        "country": payload.get("country_name") or payload.get("country") or payload.get("country_code") or "",
+        "postal": payload.get("postal") or payload.get("zip") or "",
+        "provider": GEOIP_PROVIDER_LABEL,
+    }
+
+
+def _parse_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_analyst_location(latitude, longitude, label="", source="manual", accuracy=None, approximate=False, query=""):
+    latitude = _parse_float(latitude)
+    longitude = _parse_float(longitude)
+    if latitude is None or longitude is None:
+        return None
+
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "label": label or "Analyst console",
+        "source": source or "manual",
+        "accuracy": _parse_float(accuracy),
+        "approximate": bool(approximate),
+        "query": query or "",
+    }
+
+
+def geolocate_ip(ip_value):
+    ip_value = str(ip_value or "").strip()
+    if not ip_value:
+        return None
+    if not _is_public_ip(ip_value):
+        return {
+            "ip": ip_value,
+            "private": True,
+            "reason": "Private or internal address",
+        }
+
+    now = time.time()
+    cached = geo_cache.get(ip_value)
+    if cached and (now - cached["cached_at"]) < GEOIP_CACHE_SECONDS:
+        return cached["value"]
+
+    try:
+        url = GEOIP_URL.format(ip=ip_value, api_key=GEOIP_API_KEY)
+        res = requests.get(url, timeout=8)
+        res.raise_for_status()
+        parsed = _parse_geo_payload(ip_value, res.json())
+    except Exception:
+        parsed = None
+
+    geo_cache[ip_value] = {"cached_at": now, "value": parsed}
+    return parsed
+
+
+def geocode_place(query):
+    query = str(query or "").strip()
+    if not query:
+        return None
+
+    cache_key = f"__geocode__::{query.lower()}"
+    now = time.time()
+    cached = geo_cache.get(cache_key)
+    if cached and (now - cached["cached_at"]) < GEOIP_CACHE_SECONDS:
+        return cached["value"]
+
+    result = None
+    try:
+        res = requests.get(
+            GEOCODE_URL,
+            params={"q": query, "format": "jsonv2", "limit": 1},
+            headers={"User-Agent": GEOCODE_USER_AGENT},
+            timeout=8,
+        )
+        res.raise_for_status()
+        payload = res.json()
+        if isinstance(payload, list) and payload:
+            item = payload[0]
+            result = _build_analyst_location(
+                item.get("lat"),
+                item.get("lon"),
+                label=item.get("display_name") or query,
+                source="place_search",
+                approximate=False,
+                query=query,
+            )
+    except Exception:
+        result = None
+
+    geo_cache[cache_key] = {"cached_at": now, "value": result}
+    return result
+
+
+def lookup_public_ip():
+    cache_key = "__public_ip__"
+    now = time.time()
+    cached = geo_cache.get(cache_key)
+    if cached and (now - cached["cached_at"]) < GEOIP_CACHE_SECONDS:
+        return cached["value"]
+
+    try:
+        res = requests.get(PUBLIC_IP_LOOKUP_URL, timeout=8)
+        res.raise_for_status()
+        payload = res.json()
+        public_ip = str(payload.get("ip") or "").strip()
+    except Exception:
+        public_ip = ""
+
+    geo_cache[cache_key] = {"cached_at": now, "value": public_ip}
+    return public_ip
+
+
+def get_saved_analyst_location():
+    payload = session.get("analyst_location")
+    if not isinstance(payload, dict):
+        return None
+    return _build_analyst_location(
+        payload.get("latitude"),
+        payload.get("longitude"),
+        label=payload.get("label") or "Analyst console",
+        source=payload.get("source") or "manual",
+        accuracy=payload.get("accuracy"),
+        approximate=payload.get("approximate"),
+        query=payload.get("query") or "",
+    )
+
+
+def resolve_analyst_location():
+    saved = get_saved_analyst_location()
+    if saved:
+        return saved
+
+    env_lat = _parse_float(ANALYST_LATITUDE)
+    env_lon = _parse_float(ANALYST_LONGITUDE)
+    if env_lat is not None and env_lon is not None:
+        return _build_analyst_location(
+            env_lat,
+            env_lon,
+            label="Configured analyst location",
+            source="env_coordinates",
+            approximate=False,
+        )
+
+    if ANALYST_LOCATION_QUERY:
+        return geocode_place(ANALYST_LOCATION_QUERY)
+
+    return None
+
+
+def build_live_overview():
+    raw_agents = get_caldera_agents()
+    operations = get_caldera_operations()
+    operation_summaries = []
+    map_markers = []
+    agents = []
+    analyst_location = resolve_analyst_location()
+
+    for op in operations:
+        chain = op.get("chain") or []
+        completed_links = sum(1 for link in chain if isinstance(link, dict) and link.get("status") == 0)
+        failed_links = sum(1 for link in chain if isinstance(link, dict) and link.get("status") not in (0, None))
+        operation_summaries.append(
+            {
+                "id": op.get("id"),
+                "name": op.get("name") or op.get("adversary", {}).get("name") or "Operation",
+                "state": op.get("state") or "unknown",
+                "adversary": (op.get("adversary") or {}).get("name") or "unknown",
+                "agent_count": len(op.get("agents") or []),
+                "host_group": op.get("group") or "unknown",
+                "chain_count": len(chain),
+                "completed_links": completed_links,
+                "failed_links": failed_links,
+                "start": op.get("start"),
+                "finish": op.get("finish"),
+            }
+        )
+
+    for agent in raw_agents:
+        candidate_ips = _extract_agent_ips(agent)
+        geo = None
+        geo_source = ""
+        for ip_value in candidate_ips:
+            geo = geolocate_ip(ip_value)
+            if geo and not geo.get("private"):
+                geo_source = "agent_ip"
+                break
+        if (not geo or geo.get("private")) and candidate_ips and analyst_location:
+            geo = {
+                "ip": candidate_ips[0],
+                "latitude": analyst_location["latitude"],
+                "longitude": analyst_location["longitude"],
+                "city": analyst_location.get("label") or "Analyst console",
+                "region": "",
+                "country": "",
+                "postal": "",
+                "provider": analyst_location.get("source") or "analyst_console",
+                "approximate": bool(analyst_location.get("approximate")),
+                "reason": "Private or WSL agent mapped to the analyst console location for local-lab visibility.",
+            }
+            geo_source = "analyst_console"
+        if (not geo or geo.get("private")) and candidate_ips:
+            public_ip = lookup_public_ip()
+            public_geo = geolocate_ip(public_ip) if public_ip else None
+            if public_geo and not public_geo.get("private"):
+                geo = dict(public_geo)
+                geo["approximate"] = True
+                geo["reason"] = "Agent only exposed private/WSL IPs, so this uses the host public egress location."
+                geo_source = "host_public_ip"
+        if geo and not geo.get("private"):
+            marker = dict(geo)
+            marker["paw"] = agent.get("paw")
+            marker["host"] = agent.get("host")
+            marker["status"] = agent.get("status")
+            marker["display_name"] = agent.get("display_name")
+            marker["username"] = agent.get("username")
+            marker["platform"] = agent.get("platform")
+            marker["group"] = agent.get("group")
+            marker["privilege"] = agent.get("privilege")
+            marker["trusted"] = bool(agent.get("trusted"))
+            marker["last_seen"] = agent.get("last_seen")
+            marker["candidate_ips"] = candidate_ips
+            marker["source"] = geo_source or "agent_ip"
+            map_markers.append(marker)
+        agents.append(
+            {
+                "paw": agent.get("paw"),
+                "display_name": agent.get("display_name"),
+                "host": agent.get("host"),
+                "username": agent.get("username"),
+                "platform": agent.get("platform"),
+                "group": agent.get("group"),
+                "trusted": bool(agent.get("trusted")),
+                "status": agent.get("status"),
+                "privilege": agent.get("privilege"),
+                "last_seen": agent.get("last_seen"),
+                "link_count": len(agent.get("links") or []),
+                "candidate_ips": candidate_ips,
+                "geolocation": geo,
+                "geolocation_source": geo_source,
+            }
+        )
+
+    alive_count = sum(1 for agent in agents if agent.get("status") in {"alive", "pending kill"})
+    dead_count = sum(1 for agent in agents if agent.get("status") == "dead")
+    untrusted_count = sum(1 for agent in agents if not agent.get("trusted"))
+
+    return {
+        "agents": agents,
+        "operations": operation_summaries,
+        "stats": {
+            "agent_total": len(agents),
+            "agent_alive": alive_count,
+            "agent_dead": dead_count,
+            "agent_untrusted": untrusted_count,
+            "operation_total": len(operation_summaries),
+            "operation_running": sum(1 for op in operation_summaries if str(op.get("state", "")).lower() not in {"finished", "cleanup", "out_of_time", "closed", "archived"}),
+            "mapped_attackers": len(map_markers),
+        },
+        "map_markers": map_markers,
+        "analyst_location": analyst_location,
+    }
+
+def retry_on_failure(max_retries=3, backoff=2):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt == max_retries - 1:
+                        raise
+                    wait = backoff ** attempt
+                    time.sleep(wait)
+                    print(f"[RETRY] {func.__name__} attempt {attempt+1}/{max_retries} after {wait}s: {exc}")
+            raise last_exc
+        return wrapper
+    return decorator
+
+
+@retry_on_failure(max_retries=3, backoff=1.5)
 def fetch_caldera_status():
     status = {
         "configured": bool(CALDERA_URL and CALDERA_API_KEY),
@@ -570,43 +1062,68 @@ def fetch_caldera_status():
         "url": CALDERA_URL,
         "operations": 0,
         "agents": 0,
+        "alive_agents": 0,
+        "dead_agents": 0,
+        "untrusted_agents": 0,
+        "neo4j_agents": 0,
         "abilities": 0,
         "error": None,
+        "sync_warning": None,
+        "cache_bust": int(time.time()),
+        "retry_count": 0
     }
 
     if not status["configured"]:
         status["error"] = "Missing CALDERA_URL or CALDERA_API_KEY."
+        status["retry_count"] = 0
         return status
 
     try:
-        ops_res = requests.get(
-            f"{CALDERA_URL}/api/v2/operations",
-            headers=_caldera_headers(),
-            timeout=CALDERA_TIMEOUT,
-        )
-        agents_res = requests.get(
-            f"{CALDERA_URL}/api/v2/agents",
-            headers=_caldera_headers(),
-            timeout=CALDERA_TIMEOUT,
-        )
+        operations = get_caldera_operations()
+        agents = get_caldera_agents()
         abilities_res = requests.get(
             f"{CALDERA_URL}/api/v2/abilities",
             headers=_caldera_headers(),
             timeout=CALDERA_TIMEOUT,
         )
 
-        ops_res.raise_for_status()
-        agents_res.raise_for_status()
         abilities_res.raise_for_status()
 
         status["connected"] = True
-        status["operations"] = len(ops_res.json() or [])
-        status["agents"] = len(agents_res.json() or [])
+        status["operations"] = len(operations)
+        status["agents"] = len(agents)
+        status["alive_agents"] = sum(1 for agent in agents if agent.get("status") in {"alive", "pending kill"})
+        status["dead_agents"] = sum(1 for agent in agents if agent.get("status") == "dead")
+        status["untrusted_agents"] = sum(1 for agent in agents if not agent.get("trusted"))
         status["abilities"] = len(abilities_res.json() or [])
+        status["retry_count"] = 0
+    except requests.exceptions.Timeout:
+        status["error"] = "Caldera API timeout. Check connectivity."
+        status["retry_count"] = 3
+    except requests.exceptions.RequestException as exc:
+        status["error"] = f"Caldera API error ({exc.response.status_code if hasattr(exc, 'response') else 'unknown'}): {str(exc)[:100]}"
+        status["retry_count"] = 3
     except Exception as exc:
-        status["error"] = str(exc)
+        status["error"] = f"Unexpected Caldera error: {str(exc)}"
+        status["retry_count"] = 3
+
+    # Count Neo4j agents
+    try:
+        with driver.session(database="neo4j") as session:
+            result = session.run("""
+                MATCH (a:Agent)
+                RETURN COUNT(a) AS count
+            """)
+            neo4j_count = result.single()["count"] or 0
+        status["neo4j_agents"] = int(neo4j_count)
+
+        if status["neo4j_agents"] > status["agents"]:
+            status["sync_warning"] = f"Stale data detected! Neo4j: {status['neo4j_agents']} agents vs Caldera: {status['agents']}. Check sync_worker/graph_writer."
+    except Exception as neo_exc:
+        status["neo4j_error"] = f"Neo4j count failed: {str(neo_exc)}"
 
     return status
+
 
 
 def _messages_to_gemini_payload(messages):
@@ -743,6 +1260,34 @@ def chat_with_memory(channel, system_prompt, user_message, context_block="", max
     return reply
 
 
+def _smalltalk_reply(message, context=None):
+    msg = (message or "").strip().lower()
+    if not msg:
+        return None
+
+    context = context or {}
+    risk = context.get("risk") or "LOW"
+    techniques = ", ".join((context.get("techniques") or [])[:3]) or "no mapped techniques yet"
+
+    if any(token == msg or token in msg for token in GREETING_TOKENS):
+        return (
+            "Hello. I’m your security copilot for this lab. "
+            f"Right now I’m seeing risk at {risk}, with {techniques}. "
+            "I can help you read the graph, explain attacks, suggest containment steps, and summarize what CALDERA is doing."
+        )
+
+    if any(token in msg for token in THANKS_TOKENS):
+        return "You’re welcome. If you want, ask me to summarize the current attack path, explain a technique, or suggest the next containment step."
+
+    if "who are you" in msg or "what can you do" in msg or msg == "help":
+        return (
+            "I’m an AI security assistant connected to your dashboard context. "
+            "I can explain agent activity, attack paths, MITRE techniques, defensive actions, and the live CALDERA state in simple language."
+        )
+
+    return None
+
+
 def fallback_insight(topic):
     return (
         f"Focus area: {topic}.\\n"
@@ -756,15 +1301,21 @@ def fallback_insight(topic):
 
 def fallback_coach(domain, message, context):
     msg = (message or "").strip()
+    smalltalk = _smalltalk_reply(msg, context)
+    if smalltalk:
+        return smalltalk
     if domain == "soc":
         risk = context.get("risk", "LOW")
         techniques = context.get("techniques", [])
         top = ", ".join(techniques[:3]) if techniques else "No mapped techniques yet"
+        agent_total = context.get("agent_total", 0)
+        operation_total = context.get("operation_total", 0)
         return (
             f"Topic: SOC Incident Tutoring\n"
             f"Question: {msg or 'How do I handle this incident?'}\n\n"
             f"What this means:\n"
             f"- Current risk is {risk}.\n"
+            f"- CALDERA currently shows {agent_total} agent(s) and {operation_total} operation(s).\n"
             f"- Top observed behaviors: {top}.\n\n"
             "Step-by-step response:\n"
             "1) Scope the incident: identify affected hosts/users and timeline.\n"
@@ -842,11 +1393,12 @@ def fallback_coach(domain, message, context):
 
 def tutor_response(channel, user_message, context_block="", teaching_goal="security operations", mode_override=None):
     system_prompt = (
-        "You are an expert cybersecurity tutor, like ChatGPT in teaching mode. "
-        "Teach thoroughly but clearly. "
-        "Explain concepts from basics to advanced, define terms, give examples, and provide practical steps. "
+        "You are an expert cybersecurity tutor and incident-response copilot. "
+        "Sound warm, natural, and conversational, like an LLM assistant talking directly to the user. "
+        "If the user greets you, greet them back naturally and briefly explain how you can help. "
+        "Teach thoroughly but clearly. Explain concepts from basics to advanced, define terms, give examples, and provide practical steps. "
         "When useful, include: What, Why, How, Common Mistakes, and Quick Checklist. "
-        "If user asks a direct action question, still teach the reasoning behind the action."
+        "If the user asks a direct action question, still teach the reasoning behind the action."
     )
     return chat_with_memory(
         channel,
@@ -1048,7 +1600,7 @@ def _new_maze_state(level="easy"):
         "step_index": 0,
         "completed": 0,
         "finished": False,
-        "history": ["Mission started. Use: help"],
+        "history": ["Mission started. Review the objective card and launch the first mitigation action."],
     }
 
 
@@ -1088,6 +1640,7 @@ def _maze_response(state, output=None):
         "scenario": scenario,
         "next_step": next_step,
         "output": output or "",
+        "mission_state": "complete" if state["finished"] else ("active" if scenario else "idle"),
     }
 
 
@@ -1133,13 +1686,23 @@ def dashboard():
 
     backend_status = fetch_caldera_status()
     try:
+        live_overview = build_live_overview()
+    except Exception:
+        live_overview = {"agents": [], "operations": [], "stats": {}, "map_markers": [], "analyst_location": resolve_analyst_location()}
+    try:
         graph = fetch_graph_data()
         db_error = None
     except Exception:
         graph = empty_graph()
         db_error = "Unable to load graph data from Neo4j. Check DB connection."
 
-    return render_template("index.html", graph=graph, db_error=db_error, backend_status=backend_status)
+    return render_template(
+        "index.html",
+        graph=graph,
+        db_error=db_error,
+        backend_status=backend_status,
+        live_overview=live_overview,
+    )
 
 
 @app.route("/api/backend_status")
@@ -1149,21 +1712,182 @@ def api_backend_status():
     return jsonify(fetch_caldera_status())
 
 
+@app.route("/api/live_overview")
+def api_live_overview():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        return jsonify(build_live_overview())
+    except Exception as exc:
+        return jsonify({"error": str(exc), "agents": [], "operations": [], "stats": {}, "map_markers": [], "analyst_location": resolve_analyst_location()}), 503
+
+
+@app.route("/api/analyst_location", methods=["GET", "POST", "DELETE"])
+def api_analyst_location():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if request.method == "GET":
+        return jsonify({"location": resolve_analyst_location()})
+
+    if request.method == "DELETE":
+        session.pop("analyst_location", None)
+        session.modified = True
+        return jsonify({"success": True, "location": resolve_analyst_location()})
+
+    payload = request.get_json(silent=True) or {}
+    location = None
+
+    if payload.get("query"):
+        location = geocode_place(payload.get("query"))
+        if location:
+            location["source"] = "place_search"
+
+    if not location:
+        location = _build_analyst_location(
+            payload.get("latitude"),
+            payload.get("longitude"),
+            label=payload.get("label") or "Analyst console",
+            source=payload.get("source") or "manual",
+            accuracy=payload.get("accuracy"),
+            approximate=payload.get("approximate"),
+            query=payload.get("query") or "",
+        )
+
+    if not location:
+        return jsonify({"error": "Provide valid coordinates or a place query."}), 400
+
+    session["analyst_location"] = location
+    session.modified = True
+    return jsonify({"success": True, "location": location})
+
+
+@app.route("/api/sync_status")
+def api_sync_status():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    status = fetch_caldera_status()
+    
+    # Agent activity check
+    try:
+        with driver.session(database="neo4j") as db_session:
+            active_query = """
+            MATCH (a:Agent)
+            WHERE coalesce(a.status, CASE WHEN coalesce(a.active, true) THEN 'alive' ELSE 'dead' END) IN ['alive', 'pending kill']
+            RETURN COUNT(a) AS active_count
+            """
+            result = db_session.run(active_query)
+            active_neo4j = result.single()["active_count"] or 0
+            
+            stale_query = """
+            MATCH (a:Agent)
+            WHERE coalesce(a.status, CASE WHEN coalesce(a.active, true) THEN 'alive' ELSE 'dead' END) = 'dead'
+            RETURN COUNT(a) AS stale_count
+            """
+            result = db_session.run(stale_query)
+            stale_neo4j = result.single()["stale_count"] or 0
+    except Exception as exc:
+        return jsonify({
+            "error": f"Neo4j query failed: {str(exc)}",
+            "neo4j_agents": 0,
+            "active_neo4j": 0,
+            "stale_neo4j": 0
+        })
+    
+    return jsonify({
+        "caldera_agents": status["agents"],
+        "alive_caldera_agents": status.get("alive_agents", 0),
+        "neo4j_agents": status["neo4j_agents"],
+        "active_neo4j": int(active_neo4j),
+        "stale_neo4j": int(stale_neo4j),
+        "sync_healthy": status["agents"] == status["neo4j_agents"] and active_neo4j == status.get("alive_agents", 0),
+        "diagnosis": "Neo4j count does not currently match CALDERA agent state" if status["neo4j_agents"] != status["agents"] or active_neo4j != status.get("alive_agents", 0) else "Sync appears healthy",
+        "needs_cleanup": status["neo4j_agents"] != status["agents"]
+    })
+
+
+@app.route("/api/clean_neo4j", methods=["POST"])
+def api_clean_neo4j():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        current_agent_ids = [agent.get("paw") for agent in get_caldera_agents() if agent.get("paw")]
+        with driver.session(database="neo4j") as session:
+            session.run("""
+            MATCH (a:Agent)
+            WHERE NOT a.agent_id IN $current_agent_ids
+            DETACH DELETE a
+            """, current_agent_ids=current_agent_ids)
+            
+            session.run("""
+            MATCH (f:Fact)
+            WHERE NOT (:Agent)-[:EXECUTED]->(f)
+            DETACH DELETE f
+            """)
+            
+            session.run("""
+            MATCH (t:Technique)
+            WHERE NOT (:Fact)-[:USES]->(t)
+            DETACH DELETE t
+            """)
+            
+            session.run("""
+            MATCH (ta:Tactic)
+            WHERE NOT (:Technique)-[:PART_OF]->(ta)
+            DETACH DELETE ta
+            """)
+        
+        return jsonify({
+            "success": True,
+            "message": "Neo4j cleaned: inactive agents, orphaned facts/techniques removed"
+        })
+    except Exception as exc:
+        return jsonify({
+            "error": f"Cleanup failed: {str(exc)}"
+        }), 500
+
+
+
 @app.route("/api/graph")
 def api_graph():
+    demo = request.args.get("demo") == "1"
+    if demo:
+        return jsonify({
+            "nodes": [
+                {"data": {"id": "agent1", "label": "wsl-operator", "type": "agent", "status": "alive"}},
+                {"data": {"id": "fact1", "label": "whoami", "type": "fact", "technique": "T1059"}},
+                {"data": {"id": "fact2", "label": "netstat -an", "type": "fact", "technique": "T1049"}}
+            ],
+            "edges": [
+                {"data": {"id": "e1", "source": "agent1", "target": "fact1", "relation": "executed"}},
+                {"data": {"id": "e2", "source": "fact1", "target": "fact2", "relation": "next"}}
+            ],
+            "summary": {"agent_count": 1, "fact_count": 2, "risk_score": 45, "risk_level": "ELEVATED"},
+            "attack_paths": [{"target": "identity", "length": 2, "risk_score": 45}],
+            "filters": {"agents": ["agent1"], "targets": ["identity"]},
+            "techniques": [{"id": "T1059", "count": 1}, {"id": "T1049", "count": 1}],
+            "meta": {"demo": True}
+        })
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
     agent_id = request.args.get("agent") or None
     target = request.args.get("target") or None
+    agent_state = request.args.get("agent_state") or "all"
+    cache_bust = request.args.get("t", int(time.time()))
 
     try:
-        graph = fetch_graph_data(agent_id=agent_id, target=target)
+        graph = fetch_graph_data(agent_id=agent_id, target=target, agent_state=agent_state)
+        graph["meta"]["request_cache_bust"] = cache_bust
         return jsonify(graph)
     except Exception as exc:
         payload = empty_graph()
-        payload["error"] = f"Neo4j query failed: {exc}"
-        return jsonify(payload), 500
+        payload["error"] = f"Neo4j query failed after retries: {str(exc)}"
+        payload["error_type"] = "NEO4J_UNAVAILABLE"
+        payload["retry_status"] = "exhausted"
+        return jsonify(payload), 503
 
 
 @app.route("/api/defense")
@@ -1210,7 +1934,20 @@ def api_chat():
     focus_target = (focus.get("target") or "").strip()
     focus_techniques = focus.get("techniques") or []
 
+    smalltalk = _smalltalk_reply(message)
+    if smalltalk:
+        return jsonify(
+            {
+                "reply": smalltalk,
+                "risk_level": "LOW",
+                "top_techniques": [],
+                "top_attack_path": {},
+                "matched_scenarios": [],
+            }
+        )
+
     graph = fetch_graph_data(agent_id=agent_id, target=target)
+    live_overview = build_live_overview()
     top_techniques = [t["id"] for t in graph.get("techniques", [])[:3]]
     risk = graph.get("summary", {}).get("risk_level", "LOW")
     top_path = (graph.get("attack_paths") or [{}])[0]
@@ -1255,7 +1992,16 @@ def api_chat():
     if ai_reply:
         reply = ai_reply
     else:
-        reply = fallback_coach("soc", message, {"risk": risk, "techniques": top_techniques})
+        reply = fallback_coach(
+            "soc",
+            message,
+            {
+                "risk": risk,
+                "techniques": top_techniques,
+                "agent_total": (live_overview.get("stats") or {}).get("agent_total", 0),
+                "operation_total": (live_overview.get("stats") or {}).get("operation_total", 0),
+            },
+        )
 
     return jsonify(
         {
@@ -1286,6 +2032,17 @@ def api_defense_advisor():
     focus_guidance = (focus.get("guidance") or "").strip()
     focus_target = (focus.get("target") or "").strip()
     focus_techniques = focus.get("techniques") or []
+
+    smalltalk = _smalltalk_reply(message)
+    if smalltalk:
+        return jsonify(
+            {
+                "reply": smalltalk,
+                "risk_level": "LOW",
+                "matched_scenarios": [],
+                "recommendations": [],
+            }
+        )
 
     graph = fetch_graph_data(agent_id=agent_id, target=target)
     analysis = generate_defense_recommendations(graph)
@@ -1416,7 +2173,7 @@ def api_maze_reset():
         return jsonify({"error": "Unauthorized"}), 401
     current = _get_maze_state()
     session["maze_state"] = _new_maze_state(current.get("level", "easy"))
-    return jsonify(_maze_response(session["maze_state"], "Environment reset. Start with: recon"))
+    return jsonify(_maze_response(session["maze_state"], "Mission reset. Review the new incident brief and begin with reconnaissance."))
 
 
 @app.route("/api/maze/level", methods=["POST"])
@@ -1426,7 +2183,7 @@ def api_maze_level():
     data = request.get_json(silent=True) or {}
     level = _normalize_maze_level(data.get("level"))
     session["maze_state"] = _new_maze_state(level)
-    return jsonify(_maze_response(session["maze_state"], f"Difficulty set to {level}. Start with: recon"))
+    return jsonify(_maze_response(session["maze_state"], f"Difficulty set to {level}. A new incident is ready for triage."))
 
 
 @app.route("/api/maze/command", methods=["POST"])
@@ -1439,30 +2196,30 @@ def api_maze_command():
     data = request.get_json(silent=True) or {}
     raw = (data.get("command") or "").strip().lower()
     if not raw:
-        return jsonify(_maze_response(state, "Enter a command. Try: help"))
+        return jsonify(_maze_response(state, "Select a mission action from the deck or open the advanced console if you need it."))
 
     cmd = MAZE_COMMAND_ALIASES.get(raw, None)
     if cmd is None:
-        return jsonify(_maze_response(state, "Unknown command. Use: help"))
+        return jsonify(_maze_response(state, "That action is not available in this mission. Use the action deck for the safest next move."))
 
     if cmd == "reset":
         session["maze_state"] = _new_maze_state()
-        return jsonify(_maze_response(session["maze_state"], "Environment reset. Start with: recon"))
+        return jsonify(_maze_response(session["maze_state"], "Mission reset. Review the objective card and start with reconnaissance."))
 
     if cmd == "help":
-        return jsonify(_maze_response(state, "Commands: recon, logs, isolate, block, patch, rotate, verify, next, status, reset"))
+        return jsonify(_maze_response(state, "Mitigation tools available: recon, logs, isolate, block, patch, rotate, verify, next, status, reset. The action deck shows the best move for the current incident."))
 
     if cmd == "status":
-        return jsonify(_maze_response(state, f"Level={state['level']} Health={state['health']} Score={state['score']} Completed={state['completed']}/{len(scenarios)}"))
+        return jsonify(_maze_response(state, f"Mission status: level {state['level']}, health {state['health']}, score {state['score']}, incidents contained {state['completed']} of {len(scenarios)}."))
 
     if state["finished"]:
-        return jsonify(_maze_response(state, "All scenarios completed. Use reset to play again."))
+        return jsonify(_maze_response(state, "All incidents have been contained. Reset the mission to run the exercise again."))
 
     scenario = _active_scenario(state)
     if not scenario:
         state["finished"] = True
         session["maze_state"] = state
-        return jsonify(_maze_response(state, "Mission complete."))
+        return jsonify(_maze_response(state, "Mission complete. Every incident in this run has been stabilized."))
 
     # Scenario completed, require explicit next
     if state["step_index"] >= len(scenario["steps"]):
@@ -1473,13 +2230,13 @@ def api_maze_command():
                 state["finished"] = True
                 state["history"].append("All attack scenarios mitigated.")
                 session["maze_state"] = state
-                return jsonify(_maze_response(state, "Mission complete. Great response speed."))
+                return jsonify(_maze_response(state, "Mission complete. Great response speed and solid mitigation discipline."))
             next_scn = _active_scenario(state)
-            out = f"Moved to next scenario: {next_scn['name']} ({next_scn['technique']}). Start with: recon"
+            out = f"New incident opened: {next_scn['name']} ({next_scn['technique']}). Begin with reconnaissance and evidence review."
             state["history"].append(out)
             session["maze_state"] = state
             return jsonify(_maze_response(state, out))
-        return jsonify(_maze_response(state, "Scenario finished. Type: next"))
+        return jsonify(_maze_response(state, "This incident is contained. Advance to the next incident when you are ready."))
 
     expected = scenario["steps"][state["step_index"]]
     expected_cmd = expected["cmd"]
@@ -1493,12 +2250,12 @@ def api_maze_command():
 
         if state["step_index"] >= len(scenario["steps"]):
             state["completed"] += 1
-            done_msg = f"Scenario '{scenario['name']}' mitigated. Type: next"
+            done_msg = f"Incident '{scenario['name']}' contained. Advance when you are ready."
             state["history"].append(done_msg)
             out = f"{out}\n{done_msg}"
     else:
         state["health"] = max(0, state["health"] - 6)
-        out = f"Action out of order. Expected: {expected_cmd}. Health -6"
+        out = f"That move is too early. First complete: {expected.get('label') or expected_cmd}. Health -6"
         state["history"].append(out)
 
     session["maze_state"] = state
@@ -1762,70 +2519,129 @@ def ctf_scoreboard():
 
 
 # ---------------- FETCH GRAPH ----------------
-def fetch_graph_data(agent_id=None, target=None):
+@retry_on_failure(max_retries=3, backoff=2)
+def fetch_graph_data(agent_id=None, target=None, agent_state="all"):
     nodes = {}
     edges = []
     edge_ids = set()
     techniques = Counter()
     targets = set()
+    cache_bust = int(time.time())
+    caldera_agents = []
+    live_agent_lookup = {}
+    agent_ids_for_query = None
+    agent_state = str(agent_state or "all").strip().lower()
+    if agent_state not in {"all", "alive", "dead"}:
+        agent_state = "all"
+
+    if CALDERA_API_KEY:
+        try:
+            caldera_agents = get_caldera_agents()
+            if agent_state == "alive":
+                caldera_agents = [
+                    agent for agent in caldera_agents
+                    if str(agent.get("status") or "").lower() in {"alive", "pending kill"}
+                ]
+            elif agent_state == "dead":
+                caldera_agents = [
+                    agent for agent in caldera_agents
+                    if str(agent.get("status") or "").lower() == "dead"
+                ]
+            live_agent_lookup = {agent["paw"]: agent for agent in caldera_agents if agent.get("paw")}
+            agent_ids_for_query = list(live_agent_lookup.keys())
+        except Exception:
+            caldera_agents = []
+            live_agent_lookup = {}
+            agent_ids_for_query = None
+
+    if agent_id and live_agent_lookup:
+        caldera_agents = [agent for agent in caldera_agents if agent.get("paw") == agent_id]
+        live_agent_lookup = {agent["paw"]: agent for agent in caldera_agents if agent.get("paw")}
+        agent_ids_for_query = list(live_agent_lookup.keys())
 
     with driver.session(database="neo4j") as db_session:
         result = db_session.run(
             """
             MATCH (a:Agent)
             WHERE ($agent_id IS NULL OR a.agent_id = $agent_id)
+              AND ($agent_ids IS NULL OR a.agent_id IN $agent_ids)
             OPTIONAL MATCH (a)-[:EXECUTED]->(f:Fact)
-            WHERE ($target IS NULL OR f IS NULL OR properties(f)['target'] = $target)
+            WHERE ($target IS NULL OR f IS NULL OR coalesce(f.target, '') = $target)
             OPTIONAL MATCH (f)-[:NEXT]->(n:Fact)
-            WHERE ($target IS NULL OR n IS NULL OR properties(n)['target'] = $target)
+            WHERE ($target IS NULL OR n IS NULL OR coalesce(n.target, '') = $target)
             RETURN a.agent_id AS agent,
-                   coalesce(a.active, true) AS aactive,
-                   coalesce(a.trusted, true) AS atrusted,
+                   a.host AS host,
+                   a.platform AS platform,
+                   a.group AS agroup,
+                   a.trusted AS atrusted,
+                   a.active AS aactive,
+                   a.last_seen AS last_seen,
+                   a.username AS username,
+                   a.display_name AS display_name,
+                   a.privilege AS privilege,
                    f.fact_id AS fid,
                    f.command AS cmd,
                    f.technique_id AS tech,
-                   properties(f)['target'] AS ftarget,
+                   f.target AS ftarget,
+                   f.operation_id AS operation_id,
+                   f.timestamp AS fact_time,
                    n.fact_id AS nid,
                    n.command AS ncmd,
                    n.technique_id AS ntech,
-                   properties(n)['target'] AS ntarget
+                   n.target AS ntarget,
+                   n.operation_id AS noperation_id,
+                   n.timestamp AS nfact_time
             """,
             agent_id=agent_id,
+            agent_ids=agent_ids_for_query,
             target=target,
         )
 
         for row in result:
             agent = row["agent"]
-            aactive = row["aactive"]
-            atrusted = row["atrusted"]
-            fid = row["fid"]
-            cmd = row["cmd"]
-            tech = row["tech"]
-            ftarget = row["ftarget"]
-            nid = row["nid"]
-            ncmd = row["ncmd"]
-            ntech = row["ntech"]
-            ntarget = row["ntarget"]
+            if not agent:
+                continue
+
+            live_agent = live_agent_lookup.get(agent, {})
+            agent_status = live_agent.get("status")
+            if not agent_status:
+                agent_status = "active" if bool(row["aactive"]) else "inactive"
 
             if agent not in nodes:
-                is_active = bool(aactive) and bool(atrusted)
+                display_name = live_agent.get("display_name") or row["display_name"] or agent
                 nodes[agent] = {
                     "data": {
                         "id": agent,
                         "label": agent,
+                        "display_name": display_name,
                         "type": "agent",
-                        "status": "active" if is_active else "dead",
+                        "status": agent_status,
+                        "trusted": bool(live_agent.get("trusted", row["atrusted"])),
+                        "host": live_agent.get("host") or row["host"],
+                        "platform": live_agent.get("platform") or row["platform"],
+                        "group": live_agent.get("group") or row["agroup"],
+                        "username": live_agent.get("username") or row["username"],
+                        "privilege": live_agent.get("privilege") or row["privilege"],
+                        "last_seen": live_agent.get("last_seen") or row["last_seen"],
+                        "cache_bust": cache_bust,
                     }
                 }
 
+            fid = row["fid"]
+            cmd = row["cmd"]
+            tech = row["tech"]
+            ftarget = row["ftarget"]
             if fid and fid not in nodes:
                 nodes[fid] = {
                     "data": {
                         "id": fid,
-                        "label": cmd if cmd else fid,
+                        "label": cmd if cmd else fid[:24],
                         "type": "fact",
                         "technique": tech,
                         "target": ftarget,
+                        "operation_id": row["operation_id"],
+                        "timestamp": row["fact_time"],
+                        "cache_bust": cache_bust,
                     }
                 }
 
@@ -1838,17 +2654,24 @@ def fetch_graph_data(agent_id=None, target=None):
                 executed_edge_id = f"{agent}-{fid}"
                 if executed_edge_id not in edge_ids:
                     edge_ids.add(executed_edge_id)
-                    edges.append({"data": {"id": executed_edge_id, "source": agent, "target": fid, "relation": "executed"}})
+                    edges.append({"data": {"id": executed_edge_id, "source": agent, "target": fid, "relation": "executed", "cache_bust": cache_bust}})
 
+            nid = row["nid"]
+            ncmd = row["ncmd"]
+            ntech = row["ntech"]
+            ntarget = row["ntarget"]
             if nid:
                 if nid not in nodes:
                     nodes[nid] = {
                         "data": {
                             "id": nid,
-                            "label": ncmd if ncmd else nid,
+                            "label": ncmd if ncmd else nid[:24],
                             "type": "fact",
                             "technique": ntech,
                             "target": ntarget,
+                            "operation_id": row["noperation_id"],
+                            "timestamp": row["nfact_time"],
+                            "cache_bust": cache_bust,
                         }
                     }
 
@@ -1861,18 +2684,62 @@ def fetch_graph_data(agent_id=None, target=None):
                     next_edge_id = f"{fid}-{nid}"
                     if next_edge_id not in edge_ids:
                         edge_ids.add(next_edge_id)
-                        edges.append({"data": {"id": next_edge_id, "source": fid, "target": nid, "relation": "next"}})
+                        edges.append({"data": {"id": next_edge_id, "source": fid, "target": nid, "relation": "next", "cache_bust": cache_bust}})
+
+    if caldera_agents and not target:
+        for agent in caldera_agents:
+            paw = agent.get("paw")
+            if not paw or paw in nodes:
+                continue
+            nodes[paw] = {
+                "data": {
+                    "id": paw,
+                    "label": paw,
+                    "display_name": agent.get("display_name") or paw,
+                    "type": "agent",
+                    "status": agent.get("status") or "unknown",
+                    "trusted": bool(agent.get("trusted")),
+                    "host": agent.get("host"),
+                    "platform": agent.get("platform"),
+                    "group": agent.get("group"),
+                    "username": agent.get("username"),
+                    "privilege": agent.get("privilege"),
+                    "last_seen": agent.get("last_seen"),
+                    "cache_bust": cache_bust,
+                }
+            }
 
     graph = {"nodes": list(nodes.values()), "edges": edges}
     attack_paths, target_risk = build_attack_paths(graph)
     graph["attack_paths"] = attack_paths
     graph["target_risk"] = target_risk
     graph["summary"] = build_summary(graph, techniques, target_risk)
+    agent_filter_options = []
+    for node in graph["nodes"]:
+        data = node.get("data", {})
+        if data.get("type") != "agent":
+            continue
+        agent_value = data.get("id")
+        display_name = data.get("display_name") or data.get("label") or agent_value
+        if not agent_value:
+            continue
+        agent_label = f"{display_name} ({agent_value})" if display_name and display_name != agent_value else agent_value
+        agent_filter_options.append({"value": agent_value, "label": agent_label})
+    agent_filter_options.sort(key=lambda item: item["label"].lower())
     graph["filters"] = {
-        "agents": sorted([n["data"]["id"] for n in graph["nodes"] if n["data"]["type"] == "agent"]),
+        "agents": agent_filter_options,
         "targets": sorted(targets),
     }
     graph["techniques"] = [{"id": tech_id, "count": count} for tech_id, count in techniques.most_common(12)]
+    graph["meta"] = {
+        "cache_bust": cache_bust,
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "timestamp": time.time(),
+        "agent_state_filter": agent_state,
+        "alive_agent_count": sum(1 for agent in caldera_agents if str(agent.get("status") or "").lower() in {"alive", "pending kill"}),
+        "dead_agent_count": sum(1 for agent in caldera_agents if str(agent.get("status") or "").lower() == "dead"),
+    }
 
     return graph
 
@@ -1913,7 +2780,16 @@ def build_attack_paths(graph, max_depth=8, max_paths=40):
     def path_agents(path):
         if not path:
             return []
-        return sorted(executed_from_fact.get(path[0], set()))
+        agent_ids = sorted(executed_from_fact.get(path[0], set()))
+        labels = []
+        for agent_id in agent_ids:
+            agent_node = node_map.get(agent_id, {})
+            display_name = agent_node.get("display_name") or agent_node.get("label") or agent_id
+            if display_name and display_name != agent_id:
+                labels.append(f"{display_name} ({agent_id})")
+            else:
+                labels.append(agent_id)
+        return labels
 
     def score_path(path):
         unique_tech = len(set(path_techniques(path)))

@@ -64,6 +64,7 @@ def event_id_for(link):
 
 def normalize_event(operation_id, link):
     ability = link.get("ability", {})
+    command = link.get("plaintext_command") or link.get("command") or ability.get("name")
     return {
         "event_type": "executed_link",
         "event_id": event_id_for(link),
@@ -80,7 +81,7 @@ def normalize_event(operation_id, link):
         "fact": {
             "fact_id": link.get("id") or event_id_for(link),
             "ability_id": ability.get("ability_id"),
-            "command": link.get("command"),
+            "command": command,
             "status": link.get("status"),
             "timestamp": link.get("finish"),
             "target": link.get("target"),
@@ -100,6 +101,17 @@ def normalize_agent(agent):
         "platform": agent.get("platform") or "linux",
         "group": agent.get("group") or "red",
         "trusted": bool(agent.get("trusted", False)),
+        "display_name": agent.get("display_name") or agent.get("paw"),
+        "username": agent.get("username"),
+        "privilege": agent.get("privilege"),
+        "last_seen": agent.get("last_seen"),
+        "created": agent.get("created"),
+        "sleep_min": agent.get("sleep_min"),
+        "sleep_max": agent.get("sleep_max"),
+        "watchdog": agent.get("watchdog"),
+        "contact": agent.get("contact"),
+        "pending_contact": agent.get("pending_contact"),
+        "host_ip_addrs": agent.get("host_ip_addrs") or [],
     }
 
 
@@ -130,9 +142,6 @@ def collect_executed_links(operations):
     for op in unwrap_items(operations, ["operations", "items", "data"]):
         if not isinstance(op, dict):
             continue
-        state = str(op.get("state", "")).strip().lower()
-        if state in {"finished", "cleanup", "out_of_time", "closed", "archived"}:
-            continue
         op_id = op.get("id")
         for link in op.get("chain", []):
             if not isinstance(link, dict):
@@ -149,9 +158,6 @@ def collect_active_fact_ids(operations):
     fact_ids = []
     for op in unwrap_items(operations, ["operations", "items", "data"]):
         if not isinstance(op, dict):
-            continue
-        state = str(op.get("state", "")).strip().lower()
-        if state in {"finished", "cleanup", "out_of_time", "closed", "archived"}:
             continue
         for link in op.get("chain", []):
             if not isinstance(link, dict):

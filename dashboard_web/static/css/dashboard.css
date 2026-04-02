@@ -1,0 +1,137 @@
+/* Enhanced Cyberpunk SOC Dashboard - BLACKBOXAI 2024 */
+
+/* Core Variables - Enhanced */
+:root {
+  --bg: #070b10;
+  --panel: #0e1622;
+  --line: #1f3145;
+  --text: #d3faff;
+  --muted: #90a9c1;
+  --cyan: #00ffcc;
+  --red: #ff3b3b;
+  --amber: #f7b955;
+  --purple: #a855f7;
+  --mono: "IBM Plex Mono", monospace;
+  --sans: "Space Grotesk", sans-serif;
+  
+  /* New: Theme Variants */
+  --glow-cyan: 0 0 18px rgba(0, 255, 204, 0.4);
+  --glow-amber: 0 0 16px rgba(247, 185, 85, 0.35);
+  --glow-red: 0 0 20px rgba(255, 59, 59, 0.45);
+  --glass-bg: rgba(14, 22, 34, 0.92);
+  --glass-border: rgba(127, 230, 255, 0.12);
+}
+
+/* Theme Switcher */
+body[data-theme="neon"] {
+  --cyan: #00ff88;
+  --amber: #ffaa00;
+  --glow-cyan: 0 0 24px #00ff88aa;
+}
+body[data-theme="matrix"] {
+  --bg: #000;
+  --panel: #001100;
+  --cyan: #00ff41;
+  --text: #00ff41;
+}
+
+/* Animations */
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-glow { 0%, 100% { box-shadow: var(--glow-cyan); } 50% { box-shadow: 0 0 30px rgba(0,255,204,0.6); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* Enhanced Body */
+body {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Loading Skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #0e1622 25%, #1a2b3d 50%, #0e1622 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+  height: 12px;
+  margin: 4px 0;
+}
+
+/* Particle Canvas */
+#particles-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Enhanced Graph Container */
+#graph-wrap.loading::before {
+  content: "Loading attack graph...";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-bg);
+  border-radius: 18px;
+  font-size: 16px;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  z-index: 3;
+}
+
+#graph-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(0,255,204,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(247,185,85,0.06) 0%, transparent 50%);
+  border-radius: 18px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Enhanced Toolbar */
+.graph-toolbar {
+  animation: fadeInUp 0.4s ease-out 0.2s both;
+}
+.graph-toolbar > * { animation: fadeInUp 0.3s ease-out both; }
+.graph-toolbar > *:nth-child(2) { animation-delay: 0.1s; }
+.graph-toolbar > *:nth-child(3) { animation-delay: 0.2s; }
+
+/* KPI Animations */
+.kpi {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.kpi:hover { transform: translateY(-2px); }
+
+/* Enhanced Agent Cards */
+.agent-card {
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.agent-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0,255,204,0.15);
+}
+
+/* Theme Switcher */
+#theme-toggle {
+  background: linear-gradient(45deg, var(--cyan), var(--amber));
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+/* Responsive Polish */
+@media (max-width: 920px) {
+  .mission-grid { grid-template-columns: 1fr !important; }
+  #graph-wrap { min-height: 60vh !important; }
+}
+
+/* Icons Integration */
+.icon { display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; fill: var(--cyan); }

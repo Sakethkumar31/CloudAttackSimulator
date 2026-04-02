@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cloud Attack Path Simulator - Maze Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg0: #040711;
@@ -23,7 +26,7 @@
 
     body {
       margin: 0;
-      font-family: Consolas, 'Courier New', monospace;
+      font-family: 'Space Grotesk', sans-serif;
       color: var(--text);
       background:
         radial-gradient(900px 500px at 10% -10%, #1a2d52 0%, transparent 60%),
@@ -31,6 +34,9 @@
         linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 35%, var(--bg0) 100%);
       min-height: 100vh;
       overflow-x: hidden;
+    }
+    code, input, button, .chip, .log, details, summary, select {
+      font-family: 'IBM Plex Mono', monospace;
     }
 
     .noise {
@@ -71,6 +77,108 @@
       letter-spacing: 0.4px;
       text-shadow: 0 0 16px rgba(127, 230, 255, 0.22);
     }
+    .hero-strip {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .hero-card, .hero-side {
+      border: 1px solid rgba(126, 174, 255, 0.28);
+      border-radius: 16px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(11, 20, 39, 0.92), rgba(8, 14, 28, 0.94));
+      box-shadow: inset 0 0 0 1px rgba(126, 174, 255, 0.08), 0 12px 34px rgba(2, 8, 20, 0.45);
+    }
+    .hero-kicker {
+      color: #7fe6ff;
+      font-size: 11px;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .hero-title {
+      font-size: 28px;
+      margin: 0 0 10px;
+      color: #f4fbff;
+    }
+    .hero-copy {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+      max-width: 62ch;
+    }
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .metric-card {
+      border: 1px solid rgba(126, 174, 255, 0.24);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(8, 14, 28, 0.85);
+    }
+    .metric-card strong {
+      display: block;
+      color: #f4fbff;
+      margin-bottom: 4px;
+    }
+    .metric-card span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .mission-focus {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .objective-card, .objective-side {
+      border: 1px solid rgba(126, 174, 255, 0.28);
+      border-radius: 14px;
+      background: rgba(8, 14, 28, 0.92);
+      padding: 14px;
+    }
+    .objective-eyebrow {
+      color: #7fe6ff;
+      text-transform: uppercase;
+      letter-spacing: 0.28em;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+    .objective-title {
+      margin: 0 0 8px;
+      color: #f4fbff;
+      font-size: 20px;
+    }
+    .objective-copy, .objective-note {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+    .objective-side {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .objective-stat {
+      border: 1px solid rgba(126, 174, 255, 0.22);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(12, 20, 36, 0.86);
+    }
+    .objective-stat strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #f4fbff;
+    }
+    .objective-stat span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
 
     .btn {
       color: #b7f2ff;
@@ -103,8 +211,8 @@
       border: 1px solid var(--line);
       background: var(--panel);
       backdrop-filter: blur(6px);
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 18px;
+      padding: 14px;
       box-shadow: inset 0 0 0 1px rgba(126, 174, 255, 0.08), 0 10px 32px rgba(2, 8, 20, 0.55);
     }
 
@@ -255,17 +363,36 @@
 
     .step {
       border: 1px solid rgba(83, 125, 194, 0.5);
-      border-radius: 8px;
+      border-radius: 12px;
       background: rgba(8, 14, 28, 0.95);
-      padding: 8px;
+      padding: 10px;
       font-size: 12px;
-      min-height: 56px;
+      min-height: 78px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .step.active { border-color: rgba(255, 203, 101, 0.95); }
     .step.done {
       border-color: rgba(42, 242, 201, 0.9);
       background: rgba(42, 242, 201, 0.12);
+    }
+    .step small {
+      color: #7fe6ff;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 10px;
+    }
+    .step strong {
+      color: #f4fbff;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .step span {
+      color: var(--muted);
+      font-size: 11px;
     }
 
     details {
@@ -293,8 +420,163 @@
       border-radius: 8px;
       background: #070d1a;
       padding: 8px;
-      white-space: pre-line;
       font-size: 12px;
+    }
+    .timeline-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      white-space: normal;
+    }
+    .timeline-item {
+      border: 1px solid rgba(126, 174, 255, 0.16);
+      border-radius: 12px;
+      background: rgba(9, 16, 31, 0.94);
+      padding: 10px 12px;
+    }
+    .timeline-item small {
+      display: block;
+      margin-bottom: 6px;
+      color: #7fe6ff;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 10px;
+    }
+    .timeline-item div {
+      color: #e5f6ff;
+      line-height: 1.6;
+    }
+    .timeline-item.success {
+      border-color: rgba(42, 242, 201, 0.34);
+      background: rgba(12, 36, 34, 0.92);
+    }
+    .timeline-item.warn {
+      border-color: rgba(255, 203, 101, 0.34);
+      background: rgba(38, 29, 12, 0.92);
+    }
+    .side-stack {
+      display: grid;
+      gap: 10px;
+    }
+    .hud-card {
+      border: 1px solid rgba(126, 174, 255, 0.35);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(10, 18, 34, 0.96), rgba(7, 12, 24, 0.94));
+      padding: 12px;
+    }
+    .hud-card h3 {
+      margin: 0 0 8px;
+      color: #a8e8ff;
+      font-size: 14px;
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .action-card {
+      border: 1px solid rgba(126, 174, 255, 0.28);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(11, 20, 39, 0.96), rgba(8, 14, 28, 0.94));
+      padding: 10px;
+      text-align: left;
+      min-height: 124px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .action-card strong {
+      display: block;
+      color: #e5f8ff;
+      margin-bottom: 4px;
+    }
+    .action-card small {
+      color: #7fe6ff;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: 10px;
+    }
+    .action-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .action-card .action-footer {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .action-card .action-state {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(126, 174, 255, 0.22);
+      background: rgba(126, 174, 255, 0.08);
+      color: #d7eeff;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .action-card .action-points {
+      color: #ffcb65;
+      font-size: 11px;
+    }
+    .action-card.recommended {
+      border-color: rgba(255, 203, 101, 0.9);
+      box-shadow: 0 0 16px rgba(255, 203, 101, 0.16);
+    }
+    .action-card.completed {
+      border-color: rgba(42, 242, 201, 0.55);
+      background: linear-gradient(180deg, rgba(15, 38, 35, 0.92), rgba(8, 18, 22, 0.94));
+    }
+    .action-card.locked {
+      opacity: 0.72;
+    }
+    .action-utility {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .action-utility button {
+      font-size: 11px;
+    }
+    .bot-log {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 190px;
+      white-space: normal;
+    }
+    .msg {
+      max-width: 92%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.6;
+      white-space: pre-line;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: rgba(42, 242, 201, 0.12);
+      border: 1px solid rgba(42, 242, 201, 0.22);
+    }
+    .msg.bot {
+      align-self: flex-start;
+      background: rgba(126, 174, 255, 0.1);
+      border: 1px solid rgba(126, 174, 255, 0.16);
+    }
+    .msg .speaker {
+      display: block;
+      margin-bottom: 6px;
+      color: #ffcb65;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .term { display: flex; gap: 6px; margin-top: 8px; }
@@ -328,6 +610,8 @@
     }
 
     @media (max-width: 980px) {
+      .hero-strip { grid-template-columns: 1fr; }
+      .mission-focus { grid-template-columns: 1fr; }
       .grid { grid-template-columns: 1fr; }
       .progress { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
     }
@@ -344,10 +628,30 @@
       </div>
     </div>
 
+    <div class="hero-strip">
+      <div class="hero-card">
+        <div class="hero-kicker">Training Arena</div>
+        <div class="hero-title">Clear the attack path like a defender, not a shell operator.</div>
+        <div class="hero-copy">Each mission is a playable security scenario. Read the threat lane, choose the right response card, stabilize the environment, and verify the path is truly closed before the next stage unlocks.</div>
+      </div>
+      <div class="hero-side">
+        <div class="hero-metrics">
+          <div class="metric-card">
+            <strong>Mission Loop</strong>
+            <span>Recon, review logs, isolate, block, patch, rotate, and verify in the right order.</span>
+          </div>
+          <div class="metric-card">
+            <strong>Live Coaching</strong>
+            <span>The tutor and action deck adapt to the current scenario so the lab feels guided instead of command-only.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid">
       <div class="panel">
         <div style="font-size:13px;line-height:1.5;">
-          Objective: simulate real attack paths, clear each threat node using terminal actions in correct order, and reach a verified secure state.
+          Objective: clear each threat node using the right defensive move sequence and finish with a verified safe state.
         </div>
 
         <div class="chips">
@@ -365,6 +669,28 @@
           <div class="chip">Completed: <span id="completed">0</span>/<span id="totalScenarios">0</span></div>
         </div>
 
+        <div class="mission-focus">
+          <div class="objective-card">
+            <div class="objective-eyebrow">Current Mitigation Objective</div>
+            <h3 id="objectiveTitle" class="objective-title">Loading incident...</h3>
+            <div id="objectiveCopy" class="objective-copy">Review the active incident, understand the attacker behavior, and launch the right mitigation step.</div>
+          </div>
+          <div class="objective-side">
+            <div class="objective-stat">
+              <strong>Recommended Action</strong>
+              <span id="recommendedActionLabel">Waiting for scenario</span>
+            </div>
+            <div class="objective-stat">
+              <strong>Why It Matters</strong>
+              <span id="objectiveWhy">The mission assistant will explain why this step matters once the incident is loaded.</span>
+            </div>
+            <div class="objective-stat">
+              <strong>Mission State</strong>
+              <span id="missionStateLabel">Preparing training arena</span>
+            </div>
+          </div>
+        </div>
+
         <div class="maze-board-wrap">
           <div class="maze-glow"></div>
           <div id="mazeBoard"></div>
@@ -380,58 +706,63 @@
       </div>
 
       <div class="panel">
-        <details open>
-          <summary>Terminal Environment</summary>
-          <div id="terminalLog" class="log">Initializing environment...</div>
-          <div class="term">
-            <input id="cmdInput" placeholder="recon | logs | isolate | block | patch | rotate | verify | next | status | help">
-            <button onclick="runCmd()">Run</button>
+        <div class="side-stack">
+          <div class="hud-card">
+            <h3>Ability Deck</h3>
+            <div class="case">Each card is a mitigation move in the incident response playbook. Use the highlighted card first, then work through the containment chain until the incident is verified closed.</div>
+            <div id="actionGrid" class="action-grid"></div>
+            <div class="action-utility">
+              <button onclick="quickCmd('status')">Mission Status</button>
+              <button onclick="quickCmd('help')">Playbook Help</button>
+              <button onclick="quickCmd('next')">Next Incident</button>
+              <button onclick="resetEnv()">Reset Run</button>
+            </div>
           </div>
-          <div class="quick">
-            <button onclick="quickCmd('help')">help</button>
-            <button onclick="quickCmd('status')">status</button>
-            <button onclick="quickCmd('recon')">recon</button>
-            <button onclick="quickCmd('logs')">logs</button>
-            <button onclick="quickCmd('isolate')">isolate</button>
-            <button onclick="quickCmd('block')">block</button>
-            <button onclick="quickCmd('patch')">patch</button>
-            <button onclick="quickCmd('rotate')">rotate</button>
-            <button onclick="quickCmd('verify')">verify</button>
-            <button onclick="quickCmd('next')">next</button>
-            <button onclick="resetEnv()">reset</button>
-          </div>
-        </details>
 
-        <details open>
-          <summary>Maze Tutor Chatbot</summary>
-          <div style="margin-top:6px;">
-            <select id="mazeTutorMode">
-              <option value="beginner">Tutor: Beginner</option>
-              <option value="intermediate" selected>Tutor: Intermediate</option>
-              <option value="expert">Tutor: Expert</option>
-            </select>
+          <div class="hud-card">
+            <h3>Mission Timeline</h3>
+            <div id="terminalLog" class="log timeline-feed">Initializing mission timeline...</div>
+            <details style="margin-top:8px;">
+              <summary>Advanced console</summary>
+              <div class="term">
+                <input id="cmdInput" placeholder="Optional manual action: recon | logs | isolate | block | patch | rotate | verify | next | status | help">
+                <button onclick="runCmd()">Execute</button>
+              </div>
+            </details>
           </div>
-          <div id="chatLog" class="log" style="height:170px;">Bot: Ask what to do now and I will guide you.</div>
-          <div class="term">
-            <input id="chatInput" placeholder="Ask: what is my next command?">
-            <button onclick="askBot()">Ask</button>
-          </div>
-          <div class="quick">
-            <button onclick="askPreset('What is my exact next command?')">Next command</button>
-            <button onclick="askPreset('Explain this attack in simple words')">Explain attack</button>
-            <button onclick="askPreset('Give me fast mitigation checklist')">Fast checklist</button>
-          </div>
-        </details>
 
-        <details>
-          <summary>CTF Practice</summary>
-          <div class="case">After each scenario, practice the related CTF level.</div>
-          <div class="quick">
-            <a class="btn warn" href="/ctf" target="_blank" rel="noopener">Open CTF</a>
-            <button onclick="toggleCtf()">Toggle Embedded CTF</button>
+          <div class="hud-card">
+            <h3>Mission Control</h3>
+            <div style="margin-top:6px;">
+              <select id="mazeTutorMode">
+                <option value="beginner">Tutor: Beginner</option>
+                <option value="intermediate" selected>Tutor: Intermediate</option>
+                <option value="expert">Tutor: Expert</option>
+              </select>
+            </div>
+            <div id="chatLog" class="log bot-log"></div>
+            <div class="term">
+              <input id="chatInput" placeholder="Ask: what should I do next in this mission?">
+              <button onclick="askBot()">Ask</button>
+            </div>
+            <div class="quick">
+              <button onclick="askPreset('Hi')">Hi</button>
+              <button onclick="askPreset('What is my best next move?')">Best move</button>
+              <button onclick="askPreset('Explain this attack in simple words')">Explain attack</button>
+              <button onclick="askPreset('Give me a fast mitigation checklist')">Fast checklist</button>
+            </div>
           </div>
-          <iframe id="ctfFrame" src="/ctf"></iframe>
-        </details>
+
+          <div class="hud-card">
+            <h3>CTF Practice</h3>
+            <div class="case">After each scenario, jump into the matching CTF challenge without leaving the learning flow.</div>
+            <div class="quick">
+              <a class="btn warn" href="/ctf" target="_blank" rel="noopener">Open CTF</a>
+              <button onclick="toggleCtf()">Toggle Embedded CTF</button>
+            </div>
+            <iframe id="ctfFrame" src="/ctf"></iframe>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -451,15 +782,60 @@
       [1,1], [3,3], [5,5], [6,5], [7,6]
     ];
 
+    const actionDescriptions = {
+      help: 'Show the mission controls and valid actions.',
+      status: 'Review your current scenario, health, and score.',
+      recon: 'Survey the compromised area before touching anything.',
+      logs: 'Pull the evidence trail that explains attacker behavior.',
+      isolate: 'Quarantine the risky system or identity quickly.',
+      block: 'Cut the attacker path with network or IOC controls.',
+      patch: 'Remove the weakness that allowed the intrusion.',
+      rotate: 'Reset credentials or access paths under attacker control.',
+      verify: 'Confirm the path is closed and the mission is complete.',
+      next: 'Advance only after the current stage is secured.'
+    };
+
+    const actionThemes = {
+      recon: 'Survey and scope the compromise before making changes.',
+      logs: 'Pull evidence so the attack chain is understandable.',
+      isolate: 'Stop attacker movement by containing the exposed system.',
+      block: 'Cut the route the attacker is using right now.',
+      patch: 'Remove the weakness that made the compromise possible.',
+      rotate: 'Invalidate stolen or risky credentials and access tokens.',
+      verify: 'Prove the attack path is actually closed.',
+      status: 'Review progress, health, and mission posture.',
+      help: 'Open the playbook guidance for this incident.',
+      next: 'Move to the next incident once containment is complete.',
+      reset: 'Restart the training run from the beginning.'
+    };
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function appendLog(line) {
       const el = document.getElementById('terminalLog');
-      el.textContent += `\n${line}`;
+      const item = document.createElement('div');
+      const lower = String(line || '').toLowerCase();
+      item.className = `timeline-item${/contained|complete|stabilized|verified|\(\+\d+\)/.test(lower) ? ' success' : (/health -|too early|not available/.test(lower) ? ' warn' : '')}`;
+      item.innerHTML = `<small>Mission Update</small><div>${escapeHtml(line)}</div>`;
+      el.appendChild(item);
       el.scrollTop = el.scrollHeight;
     }
 
     function setLog(lines) {
       const el = document.getElementById('terminalLog');
-      el.textContent = (lines && lines.length) ? lines.join('\n') : 'No output yet.';
+      el.innerHTML = '';
+      if (lines && lines.length) {
+        lines.forEach((line) => appendLog(line));
+      } else {
+        appendLog('No mission events yet.');
+      }
       el.scrollTop = el.scrollHeight;
     }
 
@@ -520,8 +896,120 @@
         d.className = 'step';
         if (idx < activeIdx) d.classList.add('done');
         if (idx === activeIdx) d.classList.add('active');
-        d.textContent = `${idx + 1}. ${s.label} (${s.cmd})`;
+        const stateLabel = idx < activeIdx ? 'Completed' : (idx === activeIdx ? 'Current objective' : 'Upcoming');
+        d.innerHTML = `
+          <small>Checkpoint ${idx + 1}</small>
+          <strong>${escapeHtml(s.label)}</strong>
+          <span>${escapeHtml(stateLabel)}</span>
+        `;
         holder.appendChild(d);
+      });
+    }
+
+    function appendChatMessage(speaker, message, role) {
+      const log = document.getElementById('chatLog');
+      const entry = document.createElement('div');
+      entry.className = `msg ${role}`;
+      entry.innerHTML = `<span class="speaker">${escapeHtml(speaker)}</span><div>${escapeHtml(message)}</div>`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function initBotLog() {
+      const log = document.getElementById('chatLog');
+      log.innerHTML = '';
+      appendChatMessage('Bot', 'Ask what the current scenario means, what move to take next, or why a defensive action matters.', 'bot');
+    }
+
+    function formatActionName(cmd, fallbackLabel) {
+      return fallbackLabel || String(cmd || 'Action').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function renderMissionFocus(state) {
+      const objectiveTitle = document.getElementById('objectiveTitle');
+      const objectiveCopy = document.getElementById('objectiveCopy');
+      const recommendedActionLabel = document.getElementById('recommendedActionLabel');
+      const objectiveWhy = document.getElementById('objectiveWhy');
+      const missionStateLabel = document.getElementById('missionStateLabel');
+
+      if (!state.scenario) {
+        objectiveTitle.textContent = state.finished ? 'All incidents contained' : 'Awaiting incident';
+        objectiveCopy.textContent = state.finished
+          ? 'You have completed the current training run. Reset to replay or raise the difficulty for a tougher exercise.'
+          : 'The arena is preparing the next scenario.';
+        recommendedActionLabel.textContent = state.finished ? 'Reset or change difficulty' : 'Stand by';
+        objectiveWhy.textContent = 'The mission flow will update when a new incident is active.';
+        missionStateLabel.textContent = state.finished ? 'Mission complete' : 'Idle';
+        return;
+      }
+
+      const nextStep = state.next_step;
+      const scenario = state.scenario;
+      objectiveTitle.textContent = scenario.name || 'Active incident';
+      objectiveCopy.textContent = nextStep
+        ? `Current mitigation target: ${nextStep.label}. Focus on this move before attempting later containment steps.`
+        : 'This incident is contained. Review the timeline and advance when you are ready.';
+      recommendedActionLabel.textContent = nextStep ? formatActionName(nextStep.cmd, nextStep.label) : 'Advance to next incident';
+      objectiveWhy.textContent = nextStep
+        ? (actionThemes[nextStep.cmd] || actionDescriptions[nextStep.cmd] || 'Complete the recommended mitigation step to stabilize the incident.')
+        : 'Verification is complete for this incident, so you can safely move on to the next response task.';
+      missionStateLabel.textContent = nextStep
+        ? `Step ${state.step_index + 1} of ${scenario.steps.length} in progress`
+        : 'Incident contained';
+    }
+
+    function renderActionGrid(state) {
+      const grid = document.getElementById('actionGrid');
+      grid.innerHTML = '';
+      const scenario = state.scenario;
+      if (!scenario) {
+        ['status', 'help', 'next', 'reset'].forEach((cmd) => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'action-card';
+          card.innerHTML = `
+            <small>Utility</small>
+            <strong>${formatActionName(cmd)}</strong>
+            <span>${actionThemes[cmd] || actionDescriptions[cmd] || 'Use this mission utility.'}</span>
+            <div class="action-footer">
+              <span class="action-state">Available</span>
+              <span class="action-points">Utility</span>
+            </div>
+          `;
+          card.addEventListener('click', () => quickCmd(cmd));
+          grid.appendChild(card);
+        });
+        return;
+      }
+
+      const recommended = state.next_step ? state.next_step.cmd : 'next';
+      scenario.steps.forEach((step, idx) => {
+        const cmd = step.cmd;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'action-card';
+        let stateLabel = 'Locked';
+        if (idx < state.step_index) {
+          card.classList.add('completed');
+          stateLabel = 'Done';
+        } else if (cmd === recommended) {
+          card.classList.add('recommended');
+          stateLabel = 'Recommended';
+        }
+        if (idx > state.step_index) {
+          card.classList.add('locked');
+        }
+        card.innerHTML = `
+          <small>Step ${idx + 1}</small>
+          <strong>${formatActionName(cmd, step.label)}</strong>
+          <span>${actionThemes[cmd] || actionDescriptions[cmd] || 'Run this response action.'}</span>
+          <div class="action-footer">
+            <span class="action-state">${stateLabel}</span>
+            <span class="action-points">+${step.points || 0} pts</span>
+          </div>
+        `;
+        card.addEventListener('click', () => quickCmd(cmd));
+        grid.appendChild(card);
       });
     }
 
@@ -547,8 +1035,10 @@
 
       renderMazeBoard(state);
       renderSteps(state);
+      renderMissionFocus(state);
+      renderActionGrid(state);
       setLog(state.history || []);
-      if (state.output) appendLog(`>> ${state.output}`);
+      if (state.output) appendLog(`Outcome: ${state.output}`);
     }
 
     async function loadState() {
@@ -567,13 +1057,7 @@
       renderState(data);
     }
 
-    async function runCmd() {
-      const input = document.getElementById('cmdInput');
-      const cmd = (input.value || '').trim();
-      if (!cmd) return;
-      appendLog(`$ ${cmd}`);
-      input.value = '';
-
+    async function runAction(cmd, originLabel = 'Ability Deck') {
       const res = await fetch('/api/maze/command', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -581,11 +1065,19 @@
       });
       const data = await res.json();
       renderState(data);
+      return data;
+    }
+
+    async function runCmd() {
+      const input = document.getElementById('cmdInput');
+      const cmd = (input.value || '').trim();
+      if (!cmd) return;
+      input.value = '';
+      await runAction(cmd, 'Advanced Console');
     }
 
     function quickCmd(cmd) {
-      document.getElementById('cmdInput').value = cmd;
-      runCmd();
+      runAction(cmd, 'Ability Deck');
     }
 
     async function resetEnv() {
@@ -598,8 +1090,7 @@
       const input = document.getElementById('chatInput');
       const msg = (input.value || '').trim();
       if (!msg) return;
-      const log = document.getElementById('chatLog');
-      log.textContent += `\nYou: ${msg}`;
+      appendChatMessage('You', msg, 'user');
       input.value = '';
 
       const technique = mazeState && mazeState.scenario ? mazeState.scenario.technique : 'unknown';
@@ -609,8 +1100,7 @@
         body: JSON.stringify({message: msg, technique})
       });
       const data = await res.json();
-      log.textContent += `\nBot: ${data.reply || 'No response'}`;
-      log.scrollTop = log.scrollHeight;
+      appendChatMessage('Bot', data.reply || 'No response', 'bot');
     }
 
     function askPreset(q) {
@@ -648,6 +1138,7 @@
 
     loadState();
     loadTutorMode();
+    initBotLog();
   </script>
 </body>
 </html>

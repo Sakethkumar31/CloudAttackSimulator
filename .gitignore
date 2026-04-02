@@ -27,3 +27,5 @@ build/
 *.log
 tmp/
 graph.json
+tmp_*.js
+tmp_*.py

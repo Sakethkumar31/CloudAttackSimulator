@@ -1,0 +1,12 @@
+name: WSL Adversary
+description: Lab-safe WSL adversary profile for targeting multiple systems in a single CALDERA operation. This profile maps 8 attack abilities to simulate WSL-based execution, discovery, credential/session reuse, lateral movement, collection, and controlled exfiltration-style signals across selected targets.
+atomic_ordering:
+- 5951d0ba-ac4d-4873-8517-5ad21398ffed
+- d88649f1-4fe6-4133-aa2e-00533c7d97fb
+- 07b5d669-076f-4a12-a0e8-6e6fdea4d14d
+- 2f102269-659e-481d-b87c-1999cff970ec
+- 46a25637-1044-445e-a7ce-7fd9f70d8ece
+- 2ebd0156-6762-4bf5-aab0-b7ffa21d03fa
+- 16b3f165-4d16-47fe-aebe-8aa8fdaf7e4d
+- 4f7d8b57-6db2-4c1a-8f4d-0f8f50552d1d
+adversary_id: c4e5a9b0-1d8a-4bb8-a9e6-2c8f3d7b6a41

@@ -160,6 +160,24 @@ Or run CALDERA in Docker by uncommenting the `caldera` service in `docker-compos
 - **CTF learning modes** (beginner/intermediate/expert)
 - **SOC learning bot** (chat interface)
 
+## Simulation Phases
+
+The main adversary model in this repo follows a safe multi-stage flow that is useful for demos, reports, and screenshots:
+
+1. **WSL execution foothold**
+   Command execution from a WSL/Linux operator context becomes visible in the dashboard graph.
+2. **Credential or session reuse**
+   Valid-account style behavior is simulated to show identity-driven attack expansion.
+3. **Multi-system fan-out**
+   Lateral movement style activity increases chain depth, target spread, and overall risk.
+4. **Collection and controlled egress**
+   Safe exfiltration-style indicators show how outbound activity appears in the attack path.
+
+Research/report handoff docs:
+
+- Full friend-ready packet: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
+- Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md)
+
 ---
 
 ## GitHub Workflow
@@ -193,3 +211,39 @@ docker compose --env-file infra/.env.dockerhub -f docker-compose.hub.yml up -d
 ```
 
 More detail: [docs/DOCKER_HUB_DEPLOYMENT.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/DOCKER_HUB_DEPLOYMENT.md)
+
+## Reference Notes
+
+- Demo/reviewer evidence summary: [docs/GITHUB_REFERENCE.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/GITHUB_REFERENCE.md)
+- Screenshot-by-screenshot context pack: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
+
+## Screenshot Plan
+
+For a public GitHub visitor, the screenshots should appear in this story order:
+
+1. **Architecture overview**
+   Explain the full platform: CALDERA -> `sync_worker` -> Redis -> `graph_writer` -> Neo4j -> Dashboard.
+2. **Data pipeline**
+   Show the implementation-focused service flow that turns operations into a graph-backed SOC view.
+3. **CALDERA source**
+   Show the upstream attack-emulation platform that provides agents, operations, and executed links.
+4. **SOC dashboard overview**
+   Show the analyst landing page with risk, sync health, live operations, and geospatial context.
+5. **Attack graph**
+   Show the agent-to-fact graph that proves the execution data becomes a visual attack path.
+6. **Attack focus**
+   Show the path-ranking and triage panel that adds guidance beyond simple graph rendering.
+7. **Geospatial map**
+   Show mapped agent/attacker context and analyst-console location awareness.
+8. **Maze defender simulation**
+   Show the response-training mode that converts attack-path ideas into guided mitigation steps.
+9. **CTF learner mode**
+   Show the question-and-tutor flow used for student practice and onboarding.
+
+Suggested file names and full captions are documented in [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md).
+
+## Media And Copyright
+
+Project screenshots, custom diagrams, and repository-authored explanatory media are copyright the repository owner unless otherwise noted.
+
+Third-party product names, logos, map tiles, and trademarks visible inside screenshots, including CALDERA, Redis, Neo4j, Flask, Leaflet, and OpenStreetMap attribution, remain the property of their respective owners and are shown only to document integration, demonstration, and academic/project presentation.

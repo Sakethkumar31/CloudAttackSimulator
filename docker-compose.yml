@@ -1,4 +1,4 @@
-# version removed (obsolete)
+name: cloud-attack-lab
 
 networks:
   attack-lab:
@@ -12,6 +12,8 @@ services:
   neo4j:
     image: neo4j:5-community
     container_name: neo4j
+    mem_limit: 640m
+    cpus: 1.0
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -20,15 +22,17 @@ services:
       NEO4J_apoc_export_file_enabled: 'true'
       NEO4J_apoc_import_file_enabled: 'true'
       NEO4J_apoc_http_timeout_connect: 60000
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_heap_initial__size: 128m
+      NEO4J_server_memory_heap_max__size: 256m
+      NEO4J_server_memory_pagecache_size: 128m
     volumes:
-      - neo4j_data:/var/lib/neo4j/data
+      - neo4j_data:/data
+      - neo4j_logs:/logs
     networks:
       attack-lab:
         ipv4_address: 172.25.0.3
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 >/dev/null 2>&1 && bash -lc \"</dev/tcp/localhost/7687\" >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 15s
       retries: 10
@@ -39,6 +43,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    mem_limit: 256m
+    cpus: 0.25
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -58,6 +64,8 @@ services:
   caldera:
     image: caldera:latest
     container_name: caldera
+    mem_limit: 1024m
+    cpus: 1.0
     ports:
       - "8888:8888"
       - "8443:8443"
@@ -95,6 +103,8 @@ services:
       context: .
       dockerfile: services/neo4j-sync/Dockerfile
     container_name: neo4j-sync
+    mem_limit: 384m
+    cpus: 0.5
     environment:
       CALDERA_URL: ${CALDERA_URL}
       CALDERA_API_KEY: ${CALDERA_API_KEY}
@@ -125,6 +135,8 @@ services:
       context: .
       dockerfile: services/graph_writer/Dockerfile
     container_name: graph-writer
+    mem_limit: 384m
+    cpus: 0.5
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
@@ -138,6 +150,8 @@ services:
       redis:
         condition: service_healthy
       neo4j:
+        condition: service_healthy
+      caldera:
         condition: service_healthy
     networks:
       attack-lab:
@@ -155,6 +169,8 @@ services:
       context: .
       dockerfile: dashboard_web/Dockerfile
     container_name: dashboard
+    mem_limit: 512m
+    cpus: 0.5
     ports:
       - "5000:5000"
     environment:
@@ -169,11 +185,23 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       DASHBOARD_USER: ${DASHBOARD_USER:-socadmin}
       DASHBOARD_PASS: ${DASHBOARD_PASS:-replace_with_dashboard_password}
+      GEOIP_URL: ${GEOIP_URL:-https://ipapi.co/{ip}/json/}
+      GEOIP_API_KEY: ${GEOIP_API_KEY:-}
+      GEOIP_PROVIDER_LABEL: ${GEOIP_PROVIDER_LABEL:-ipapi.co}
+      GEOIP_CACHE_SECONDS: ${GEOIP_CACHE_SECONDS:-1800}
+      PUBLIC_IP_LOOKUP_URL: ${PUBLIC_IP_LOOKUP_URL:-https://api.ipify.org?format=json}
+      ANALYST_LOCATION_QUERY: ${ANALYST_LOCATION_QUERY:-}
+      ANALYST_LATITUDE: ${ANALYST_LATITUDE:-}
+      ANALYST_LONGITUDE: ${ANALYST_LONGITUDE:-}
+      GEOCODE_URL: ${GEOCODE_URL:-https://nominatim.openstreetmap.org/search}
+      GEOCODE_USER_AGENT: ${GEOCODE_USER_AGENT:-cloud-attack-lab-dashboard/1.0}
       PYTHONUNBUFFERED: ${PYTHONUNBUFFERED:-1}
     depends_on:
       redis:
         condition: service_healthy
       neo4j:
+        condition: service_healthy
+      caldera:
         condition: service_healthy
     networks:
       attack-lab:
@@ -188,6 +216,8 @@ services:
 
 volumes:
   neo4j_data:
+    driver: local
+  neo4j_logs:
     driver: local
   redis_data:
     driver: local

@@ -4,17 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud Attack Path Simulator - SOC Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root {
       --bg: #070b10;
       --panel: #0e1622;
+      --panel-soft: rgba(17, 26, 39, 0.9);
+      --surface: rgba(9, 15, 24, 0.92);
       --line: #1f3145;
       --text: #d3faff;
       --muted: #90a9c1;
       --cyan: #00ffcc;
       --red: #ff3b3b;
       --amber: #f7b955;
+      --cyan-soft: rgba(0, 255, 204, 0.12);
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
     }
     * { box-sizing: border-box; }
     body {
@@ -24,7 +30,7 @@
         radial-gradient(circle at 92% 12%, rgba(247, 185, 85, 0.12), transparent 20%),
         linear-gradient(180deg, #0a121d 0%, #070b10 58%, #05080d 100%);
       color: var(--text);
-      font-family: Consolas, monospace;
+      font-family: "Segoe UI Variable", "Trebuchet MS", sans-serif;
       position: relative;
     }
     body::before {
@@ -53,10 +59,41 @@
       backdrop-filter: blur(8px);
       box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
     }
-    .title-wrap { display: flex; flex-direction: column; gap: 3px; }
-    .title { color: var(--cyan); font-size: 18px; font-weight: 700; letter-spacing: 0.4px; text-shadow: 0 0 18px rgba(0, 255, 204, 0.18); }
-    .subtitle { color: var(--muted); font-size: 11px; }
-    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+    .title-wrap { display: flex; flex-direction: column; gap: 4px; }
+    .title {
+      color: var(--cyan);
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      text-shadow: 0 0 18px rgba(0, 255, 204, 0.18);
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: Consolas, monospace;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: flex-end;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 132px;
+    }
+    .control-group.actions {
+      min-width: auto;
+    }
+    .control-label {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
     select, button {
       background: linear-gradient(180deg, #111c2a, #0b131e);
       color: var(--text);
@@ -64,8 +101,14 @@
       padding: 8px 10px;
       border-radius: 10px;
       transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+      font: inherit;
     }
     button { cursor: pointer; }
+    .control-group.actions .control-actions-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     button:hover, select:hover, .logout:hover, .learn-link:hover {
       transform: translateY(-1px);
       border-color: rgba(127, 230, 255, 0.5);
@@ -87,12 +130,374 @@
       border-radius: 10px;
       background: rgba(247, 185, 85, 0.04);
     }
+    .mission-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 12px 12px 0;
+    }
+    .mission-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      padding: 14px 16px;
+      border: 1px solid rgba(127, 230, 255, 0.12);
+      background:
+        radial-gradient(circle at top right, rgba(127, 230, 255, 0.1), transparent 28%),
+        linear-gradient(180deg, rgba(14, 23, 35, 0.96), rgba(9, 14, 22, 0.96));
+      box-shadow: var(--shadow);
+    }
+    .mission-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -14% -55% auto;
+      width: 120px;
+      height: 120px;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.14), transparent 62%);
+      pointer-events: none;
+    }
+    .mission-card.warn::after {
+      background: radial-gradient(circle, rgba(255, 59, 59, 0.15), transparent 62%);
+    }
+    .mission-card.ok::after {
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.15), transparent 62%);
+    }
+    .mission-label {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+      font-family: Consolas, monospace;
+    }
+    .mission-value {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .mission-value .accent {
+      color: var(--cyan);
+    }
+    .mission-detail {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
     .grid {
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: 350px minmax(0, 1fr);
       gap: 12px;
       padding: 12px;
       min-height: calc(100vh - 70px);
+      align-items: start;
+    }
+    .overview-strip {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px 12px 0;
+    }
+    .overview-card {
+      background: linear-gradient(180deg, rgba(14, 22, 34, 0.98), rgba(10, 16, 25, 0.98));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), 0 16px 34px rgba(0, 0, 0, 0.24);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 100%;
+    }
+    .overview-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .overview-kicker {
+      color: var(--amber);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      font-family: Consolas, monospace;
+    }
+    .overview-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f1fbff;
+      margin-top: 2px;
+    }
+    .overview-subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .overview-badge {
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(127, 230, 255, 0.18);
+      background: rgba(0, 255, 204, 0.06);
+      color: var(--text);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .overview-badge strong {
+      color: var(--cyan);
+      font-size: 15px;
+      margin-right: 4px;
+    }
+    .operation-list,
+    .marker-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .operation-item,
+    .marker-item {
+      border: 1px solid rgba(127, 230, 255, 0.1);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(13, 22, 35, 0.98), rgba(8, 14, 22, 0.96));
+      padding: 12px;
+    }
+    .operation-item-top,
+    .marker-item-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .operation-name,
+    .marker-name {
+      font-weight: 700;
+      color: #eefcff;
+    }
+    .operation-state,
+    .marker-state {
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      font-family: Consolas, monospace;
+      border: 1px solid rgba(127, 230, 255, 0.14);
+      background: rgba(0, 255, 204, 0.08);
+      color: var(--text);
+    }
+    .operation-state.finished,
+    .marker-state.dead {
+      background: rgba(255, 59, 59, 0.08);
+      border-color: rgba(255, 59, 59, 0.2);
+      color: #ffc4c4;
+    }
+    .operation-meta,
+    .marker-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .operation-chips,
+    .marker-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .overview-chip {
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(127, 230, 255, 0.14);
+      color: #bfeeff;
+      font-size: 11px;
+      font-family: Consolas, monospace;
+      background: rgba(15, 30, 46, 0.88);
+    }
+    .map-card-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.9fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+    .map-shell {
+      position: relative;
+      min-height: 318px;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 230, 255, 0.14);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(0, 255, 204, 0.14), transparent 24%),
+        linear-gradient(180deg, rgba(10, 18, 28, 0.98), rgba(7, 11, 17, 0.98));
+    }
+    #attackerMap {
+      width: 100%;
+      height: 100%;
+      min-height: 318px;
+    }
+    .map-hover-card {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      z-index: 500;
+      width: min(340px, calc(100% - 28px));
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 230, 255, 0.16);
+      background: linear-gradient(180deg, rgba(10, 17, 26, 0.94), rgba(6, 10, 16, 0.96));
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+      color: var(--text);
+      pointer-events: none;
+    }
+    .map-hover-card-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #f2fbff;
+      margin-bottom: 8px;
+      letter-spacing: 0.4px;
+    }
+    .map-hover-card-body {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .map-hover-card-body strong {
+      color: #eafcff;
+    }
+    .map-fallback {
+      height: 100%;
+      min-height: 318px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 18px;
+      color: var(--text);
+    }
+    .map-fallback-title {
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .map-fallback-detail {
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 48ch;
+    }
+    .map-side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .map-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .map-stat {
+      border: 1px solid rgba(127, 230, 255, 0.1);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(9, 17, 27, 0.94);
+    }
+    .map-stat strong {
+      display: block;
+      font-size: 20px;
+      color: var(--cyan);
+      margin-bottom: 4px;
+    }
+    .map-stat span {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+    .overview-empty {
+      border: 1px dashed rgba(127, 230, 255, 0.16);
+      border-radius: 14px;
+      padding: 14px;
+      color: var(--muted);
+      background: rgba(10, 17, 27, 0.72);
+      line-height: 1.55;
+    }
+    .map-note {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-family: Consolas, monospace;
+    }
+    .leaflet-container {
+      background: linear-gradient(180deg, rgba(8, 15, 24, 0.98), rgba(5, 9, 14, 0.98));
+      color: #0a111a;
+      font-family: "Segoe UI Variable", "Trebuchet MS", sans-serif;
+    }
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #0f1825;
+      color: var(--text);
+      border: 1px solid rgba(127, 230, 255, 0.14);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+    }
+    .leaflet-tooltip.coord-tooltip {
+      background: rgba(8, 14, 22, 0.96);
+      color: #eafcff;
+      border: 1px solid rgba(127, 230, 255, 0.18);
+      border-radius: 10px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+      font-family: Consolas, monospace;
+      font-size: 11px;
+      padding: 6px 8px;
+    }
+    .leaflet-tooltip.coord-tooltip::before {
+      border-top-color: rgba(127, 230, 255, 0.18);
+    }
+    .map-pin {
+      position: relative;
+      width: 28px;
+      height: 38px;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+    }
+    .map-pin-shape {
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+      border: 2px solid rgba(255, 255, 255, 0.32);
+      background: linear-gradient(180deg, var(--pin-top, #49ffd9), var(--pin-core, #00c8a6));
+    }
+    .map-pin-dot {
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(7, 11, 17, 0.92);
+      border: 2px solid rgba(240, 252, 255, 0.85);
+      box-shadow: 0 0 0 2px rgba(7, 11, 17, 0.24);
+    }
+    .map-pin.attacker .map-pin-shape {
+      background: linear-gradient(180deg, #ffe49a, #f7b955);
+    }
+    .map-pin.dead .map-pin-shape {
+      background: linear-gradient(180deg, #ff9c9c, #ff5d5d);
+    }
+    .map-pin.target .map-pin-shape,
+    .map-pin.analyst .map-pin-shape {
+      background: linear-gradient(180deg, #ff9f9f, #ff4d6d);
+    }
+    .leaflet-control-attribution {
+      background: rgba(7, 11, 16, 0.76) !important;
+      color: var(--muted) !important;
+      font-size: 10px;
+    }
+    .leaflet-control-attribution a {
+      color: #bfeeff !important;
     }
     .panel {
       background: linear-gradient(180deg, rgba(14, 22, 34, 0.98), rgba(10, 16, 25, 0.98));
@@ -100,28 +505,54 @@
       padding: 12px;
       border-radius: 18px;
       box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), 0 16px 34px rgba(0, 0, 0, 0.24);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: sticky;
+      top: 84px;
+      max-height: calc(100vh - 96px);
+      overflow: auto;
+    }
+    .panel > * { margin: 0; }
+    .panel::-webkit-scrollbar,
+    .mitre-list::-webkit-scrollbar,
+    .defense-list::-webkit-scrollbar,
+    .path-list::-webkit-scrollbar,
+    .chat-log::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .panel::-webkit-scrollbar-thumb,
+    .mitre-list::-webkit-scrollbar-thumb,
+    .defense-list::-webkit-scrollbar-thumb,
+    .path-list::-webkit-scrollbar-thumb,
+    .chat-log::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(127, 230, 255, 0.18), rgba(31, 49, 69, 0.9));
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
     }
     .kpis {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      margin-bottom: 12px;
     }
     .kpi {
       border: 1px solid var(--line);
-      padding: 8px;
+      padding: 10px;
       background: linear-gradient(180deg, rgba(14, 24, 38, 0.95), rgba(8, 15, 24, 0.95));
       border-radius: 12px;
       box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.03);
     }
-    .kpi .v { font-size: 18px; color: var(--cyan); }
-    .kpi .l { color: var(--muted); font-size: 12px; }
+    .kpi .v { font-size: 20px; font-weight: 800; color: var(--cyan); }
+    .kpi .l { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; }
     .risk {
-      margin: 10px 0;
       border: 1px solid var(--line);
-      padding: 8px;
-      background: linear-gradient(180deg, rgba(16, 26, 39, 0.98), rgba(10, 17, 26, 0.98));
-      border-radius: 14px;
+      padding: 12px;
+      background:
+        radial-gradient(circle at top right, rgba(247, 185, 85, 0.1), transparent 24%),
+        linear-gradient(180deg, rgba(16, 26, 39, 0.98), rgba(10, 17, 26, 0.98));
+      border-radius: 16px;
     }
     .bar {
       width: 100%;
@@ -148,7 +579,20 @@
       display: none;
     }
     @keyframes blink { 50% { opacity: .35; } }
-    .mitre h3 { margin: 10px 0 8px; font-size: 14px; color: var(--amber); }
+    .mitre {
+      border: 1px solid rgba(127, 230, 255, 0.08);
+      border-radius: 16px;
+      padding: 12px;
+      background: linear-gradient(180deg, rgba(14, 22, 34, 0.94), rgba(8, 13, 20, 0.94));
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.03);
+    }
+    .mitre h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--amber);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
     .mitre-list {
       max-height: 220px;
       overflow: auto;
@@ -156,6 +600,7 @@
       background: #0b131e;
       padding: 8px;
       margin: 0;
+      border-radius: 12px;
       list-style: none;
     }
     .mitre-list li {
@@ -174,6 +619,7 @@
       padding: 8px 14px;
       margin: 8px 0 0;
       font-size: 12px;
+      border-radius: 12px;
     }
     .path-list {
       max-height: 180px;
@@ -182,6 +628,7 @@
       background: #0b131e;
       padding: 8px;
       margin: 0;
+      border-radius: 12px;
       list-style: none;
       font-size: 12px;
     }
@@ -266,10 +713,10 @@
     .focus-card {
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(15, 24, 37, 0.98), rgba(10, 16, 25, 0.98));
-      padding: 10px;
+      padding: 12px;
       font-size: 12px;
       line-height: 1.5;
-      border-radius: 14px;
+      border-radius: 16px;
       box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
     }
     .focus-title {
@@ -304,10 +751,11 @@
       margin-bottom: 5px;
     }
     .chat-panel {
-      margin-top: 10px;
       border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(13, 22, 35, 0.98), rgba(9, 15, 24, 0.98));
-      padding: 10px;
+      background:
+        radial-gradient(circle at top right, rgba(0, 255, 204, 0.07), transparent 28%),
+        linear-gradient(180deg, rgba(13, 22, 35, 0.98), rgba(9, 15, 24, 0.98));
+      padding: 12px;
       border-radius: 16px;
       box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
     }
@@ -344,6 +792,7 @@
       color: var(--text);
       padding: 8px 10px;
       border-radius: 10px;
+      font: inherit;
     }
     #graph-wrap {
       background:
@@ -357,7 +806,189 @@
       overflow: hidden;
       box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), 0 16px 34px rgba(0, 0, 0, 0.22);
     }
-    #graph { width: 100%; height: 100%; min-height: 70vh; }
+    #graph-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(127, 230, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127, 230, 255, 0.04) 1px, transparent 1px);
+      background-size: 38px 38px;
+      opacity: 0.55;
+      mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
+      z-index: 0;
+    }
+    #graph-wrap::after {
+      content: "Neo-style Investigation Canvas";
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(127, 230, 255, 0.12);
+      background: rgba(7, 11, 17, 0.7);
+      color: rgba(191, 238, 255, 0.82);
+      font-size: 10px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      font-family: Consolas, monospace;
+      pointer-events: none;
+      z-index: 2;
+    }
+    #graph {
+      width: 100%;
+      height: 100%;
+      min-height: 70vh;
+      position: relative;
+      z-index: 1;
+    }
+    .graph-loading {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(7, 11, 16, 0.82);
+      backdrop-filter: blur(6px);
+      z-index: 3;
+    }
+    .graph-loading-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 230, 255, 0.22);
+      background: linear-gradient(180deg, rgba(12, 20, 31, 0.98), rgba(7, 12, 19, 0.98));
+      color: var(--cyan);
+      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
+    }
+    .graph-spinner {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 3px solid rgba(127, 230, 255, 0.16);
+      border-top-color: var(--cyan);
+      animation: graph-spin 0.9s linear infinite;
+    }
+    @keyframes graph-spin {
+      to { transform: rotate(360deg); }
+    }
+    .graph-message {
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 28px;
+      text-align: center;
+      color: var(--text);
+    }
+    .graph-message-title {
+      color: var(--cyan);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .graph-message-detail {
+      color: var(--muted);
+      max-width: 520px;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+    .graph-message.error .graph-message-title {
+      color: #ffb3b3;
+    }
+    .graph-message.error .graph-message-detail {
+      color: #ffd3d3;
+    }
+    .graph-fallback {
+      min-height: 70vh;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .graph-fallback-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .graph-fallback-title {
+      color: var(--cyan);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .graph-fallback-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .graph-fallback-note {
+      border: 1px solid rgba(247, 185, 85, 0.32);
+      background: rgba(247, 185, 85, 0.08);
+      color: #ffe2b8;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .graph-fallback-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .graph-fallback-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: rgba(9, 16, 26, 0.84);
+    }
+    .graph-fallback-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .graph-fallback-canvas {
+      flex: 1;
+      min-height: 52vh;
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 230, 255, 0.12);
+      background:
+        radial-gradient(circle at top left, rgba(0, 255, 204, 0.06), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(247, 185, 85, 0.06), transparent 20%),
+        rgba(6, 10, 16, 0.95);
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
+    }
+    .graph-fallback-svg {
+      width: 100%;
+      height: 100%;
+      min-width: 720px;
+      min-height: 520px;
+      display: block;
+    }
+    .graph-fallback-node {
+      cursor: default;
+      transition: transform .16s ease;
+    }
+    .graph-fallback-node[data-agent-id] {
+      cursor: pointer;
+    }
+    .graph-fallback-node:hover {
+      filter: brightness(1.08);
+    }
     .empty, .notice {
       margin: 10px;
       padding: 8px;
@@ -367,22 +998,26 @@
       font-size: 12px;
     }
     .backend {
-      margin-bottom: 12px;
       border: 1px solid var(--line);
-      padding: 10px;
-      background: #0b131e;
+      padding: 12px;
+      background:
+        radial-gradient(circle at top right, rgba(127, 230, 255, 0.08), transparent 30%),
+        #0b131e;
       font-size: 12px;
+      border-radius: 16px;
     }
     .backend.ok { border-color: #1e6a57; }
     .backend.bad { border-color: #8f2a2a; }
     .backend-title {
       color: var(--amber);
-      font-size: 14px;
-      margin-bottom: 8px;
+      font-size: 12px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.75px;
     }
     .backend-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin-top: 8px;
     }
@@ -390,6 +1025,7 @@
       border: 1px solid var(--line);
       padding: 6px;
       background: #09101a;
+      border-radius: 10px;
     }
     .backend-chip strong {
       display: block;
@@ -400,9 +1036,224 @@
       color: var(--muted);
       word-break: break-all;
     }
+    .sync-note {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(127, 230, 255, 0.16);
+      background: rgba(127, 230, 255, 0.06);
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .sync-note.bad {
+      border-color: rgba(255, 59, 59, 0.35);
+      background: rgba(255, 59, 59, 0.1);
+      color: #ffd3d3;
+    }
+    .sync-note.ok {
+      border-color: rgba(0, 255, 204, 0.22);
+      background: rgba(0, 255, 204, 0.07);
+      color: #c5fff1;
+    }
+    .graph-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .graph-stage {
+      border-radius: 22px;
+      border: 1px solid rgba(127, 230, 255, 0.12);
+      background:
+        radial-gradient(circle at top right, rgba(127, 230, 255, 0.08), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(255, 0, 85, 0.06), transparent 20%),
+        linear-gradient(180deg, rgba(10, 17, 26, 0.98), rgba(6, 11, 18, 0.98));
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04), var(--shadow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .graph-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .graph-kicker {
+      color: var(--amber);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.75px;
+      margin-bottom: 4px;
+    }
+    .graph-headline {
+      margin: 0;
+      color: var(--text);
+      font-size: 28px;
+      line-height: 1.1;
+    }
+    .graph-subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      max-width: 680px;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+    .graph-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(96px, 1fr));
+      gap: 8px;
+      min-width: min(100%, 320px);
+    }
+    .graph-summary-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background:
+        radial-gradient(circle at top right, rgba(127, 230, 255, 0.08), transparent 26%),
+        linear-gradient(180deg, rgba(14, 24, 38, 0.94), rgba(9, 15, 24, 0.94));
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.03), 0 10px 24px rgba(0, 0, 0, 0.16);
+    }
+    .graph-summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 6px;
+    }
+    .graph-summary-card strong {
+      color: var(--cyan);
+      font-size: 22px;
+      font-family: Consolas, monospace;
+    }
+    .graph-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 230, 255, 0.12);
+      background:
+        radial-gradient(circle at left center, rgba(0, 255, 204, 0.06), transparent 20%),
+        linear-gradient(180deg, rgba(12, 19, 29, 0.94), rgba(7, 11, 17, 0.94));
+      box-shadow: inset 0 0 0 1px rgba(127, 230, 255, 0.04);
+    }
+    .graph-legend-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .graph-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(9, 16, 26, 0.9);
+      color: #d6edf6;
+      font-size: 11px;
+    }
+    .graph-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .graph-help {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      max-width: 420px;
+      text-align: right;
+      font-family: Consolas, monospace;
+    }
+    .graph-help strong {
+      color: #eefcff;
+    }
+    .graph-callout {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(247, 185, 85, 0.22);
+      background: rgba(247, 185, 85, 0.08);
+      color: #ffe2b8;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .graph-callout strong {
+      color: #fff4cf;
+    }
+    .graph-callout-code {
+      color: var(--text);
+      font-family: Consolas, monospace;
+      background: rgba(8, 14, 21, 0.72);
+      border: 1px solid rgba(127, 230, 255, 0.1);
+      padding: 6px 9px;
+      border-radius: 10px;
+    }
     @media (max-width: 920px) {
+      .mission-bar {
+        grid-template-columns: 1fr 1fr;
+      }
+      .overview-strip,
+      .map-card-body {
+        grid-template-columns: 1fr;
+      }
       .grid { grid-template-columns: 1fr; }
       #graph { min-height: 55vh; }
+      .controls {
+        justify-content: stretch;
+      }
+      .control-group {
+        min-width: 0;
+        flex: 1 1 180px;
+      }
+      .control-group.actions {
+        flex-basis: 100%;
+      }
+      .panel {
+        position: static;
+        max-height: none;
+        overflow: visible;
+      }
+      .backend-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .graph-summary-grid {
+        width: 100%;
+      }
+      .graph-help {
+        text-align: left;
+      }
+    }
+    @media (max-width: 640px) {
+      .topbar {
+        padding: 12px;
+      }
+      .mission-bar {
+        grid-template-columns: 1fr;
+      }
+      .map-stat-grid,
+      .backend-grid,
+      .kpis {
+        grid-template-columns: 1fr;
+      }
+      .graph-headline {
+        font-size: 24px;
+      }
+      .graph-summary-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -413,23 +1264,120 @@
       <div class="subtitle">Attack paths, agent chains, MITRE mapping, and guided mitigations in one view.</div>
     </div>
     <div class="controls">
-      <select id="agentFilter"><option value="">All Agents</option></select>
-      <select id="targetFilter"><option value="">All Targets</option></select>
-      <select id="tutorMode">
-        <option value="beginner">Tutor: Beginner</option>
-        <option value="intermediate" selected>Tutor: Intermediate</option>
-        <option value="expert">Tutor: Expert</option>
-      </select>
-      <button id="refreshBtn">Refresh</button>
-      <button id="autoBtn">Auto: ON (5s)</button>
-      <a class="learn-link" href="/learn/maze">Attack Path Maze</a>
-      <a class="logout" href="/logout">Logout</a>
+      <label class="control-group">
+        <span class="control-label">Agent Scope</span>
+        <select id="agentFilter"><option value="">All Agents</option></select>
+      </label>
+      <label class="control-group">
+        <span class="control-label">Agent State</span>
+        <select id="graphAgentStateFilter">
+          <option value="all">All Agents</option>
+          <option value="alive">Alive Agents</option>
+          <option value="dead">Dead Agents</option>
+        </select>
+      </label>
+      <label class="control-group">
+        <span class="control-label">Target Scope</span>
+        <select id="targetFilter"><option value="">All Targets</option></select>
+      </label>
+      <label class="control-group">
+        <span class="control-label">Tutor Depth</span>
+        <select id="tutorMode">
+          <option value="beginner">Tutor: Beginner</option>
+          <option value="intermediate" selected>Tutor: Intermediate</option>
+          <option value="expert">Tutor: Expert</option>
+        </select>
+      </label>
+      <div class="control-group actions">
+        <span class="control-label">Actions</span>
+        <div class="control-actions-row">
+          <button id="refreshBtn">Refresh</button>
+          <button id="autoBtn">Auto: ON (5s)</button>
+          <a class="learn-link" href="/learn/maze">Attack Path Maze</a>
+          <a class="logout" href="/logout">Logout</a>
+        </div>
+      </div>
     </div>
   </div>
 
   {% if db_error %}
   <div class="notice">{{ db_error }}</div>
   {% endif %}
+
+  <section class="mission-bar">
+    <article class="mission-card">
+      <div class="mission-label">Current Risk</div>
+      <div id="missionRiskValue" class="mission-value">
+        <span class="accent">{{ graph.summary.risk_level if graph.summary else "LOW" }}</span>
+        <span id="missionRiskScore">{{ graph.summary.risk_score if graph.summary else 0 }}</span>
+      </div>
+      <div id="missionRiskDetail" class="mission-detail">Overall SOC exposure based on visible attack paths and linked evidence.</div>
+    </article>
+    <article class="mission-card">
+      <div class="mission-label">Visible Scope</div>
+      <div id="missionScopeValue" class="mission-value">{{ graph.summary.agent_count if graph.summary else 0 }} agents</div>
+      <div id="missionScopeDetail" class="mission-detail">Tracking {{ graph.summary.fact_count if graph.summary else 0 }} facts in the current dashboard view.</div>
+    </article>
+    <article id="missionSyncCard" class="mission-card {% if backend_status.sync_warning %}warn{% elif backend_status.connected %}ok{% endif %}">
+      <div class="mission-label">Sync Health</div>
+      <div id="missionSyncValue" class="mission-value">{{ "Warning" if backend_status.sync_warning else ("Healthy" if backend_status.connected else "Offline") }}</div>
+      <div id="missionSyncDetail" class="mission-detail">{{ backend_status.sync_warning or "CALDERA, Neo4j, and the dashboard are aligned." }}</div>
+    </article>
+    <article class="mission-card">
+      <div class="mission-label">Live Operations</div>
+      <div id="missionOpsValue" class="mission-value">{{ backend_status.operations }}</div>
+      <div id="missionOpsDetail" class="mission-detail">{{ backend_status.agents }} agents, {{ backend_status.alive_agents }} alive, {{ backend_status.abilities }} abilities currently reachable.</div>
+    </article>
+  </section>
+
+  <section class="overview-strip">
+    <article class="overview-card">
+      <div class="overview-header">
+        <div>
+          <div class="overview-kicker">Legacy Operations</div>
+          <div class="overview-title">Operation Mirror</div>
+          <div class="overview-subtitle">Compact live operations feed brought back from the older SOC view, but restyled to fit the cleaner dashboard.</div>
+        </div>
+        <div id="operationMirrorBadge" class="overview-badge"><strong>{{ live_overview.stats.operation_running if live_overview.stats else 0 }}</strong> active</div>
+      </div>
+      <div id="operationMirrorList" class="operation-list"></div>
+    </article>
+
+    <article class="overview-card">
+      <div class="overview-header">
+        <div>
+          <div class="overview-kicker">Geospatial View</div>
+          <div class="overview-title">Attacker Map</div>
+          <div class="overview-subtitle">Live agent locations from CALDERA IP intelligence, with analyst-console fallback for local lab sessions.</div>
+        </div>
+        <div id="mappedAttackersBadge" class="overview-badge"><strong>{{ live_overview.stats.mapped_attackers if live_overview.stats else 0 }}</strong> mapped</div>
+      </div>
+      <div class="map-card-body">
+        <div class="map-shell">
+          <div id="attackerMap"></div>
+          <div id="mapHoverCard" class="map-hover-card">
+            <div class="map-hover-card-title">Map Inspector</div>
+            <div id="mapHoverCardBody" class="map-hover-card-body">Hover an attacker or target pin to inspect address, coordinates, and attack context here.</div>
+          </div>
+        </div>
+        <div class="map-side">
+          <div class="map-stat-grid">
+            <div class="map-stat">
+              <strong id="mapAgentCount">{{ live_overview.stats.agent_total if live_overview.stats else 0 }}</strong>
+              <span>Tracked Agents</span>
+            </div>
+            <div class="map-stat">
+              <strong id="mapMappedCount">{{ live_overview.stats.mapped_attackers if live_overview.stats else 0 }}</strong>
+              <span>Mappable Agents</span>
+            </div>
+          </div>
+          <div id="analystLocationCard" class="operation-item"></div>
+          <div id="mapMarkerList" class="marker-list"></div>
+          <div class="map-note">Markers may be approximate when agents only expose private or WSL addresses.</div>
+        </div>
+      </div>
+    </article>
+  </section>
 
   <div class="grid">
     <aside class="panel">
@@ -438,9 +1386,15 @@
         <div>Caldera API: <strong id="backendState">{{ "CONNECTED" if backend_status.connected else "NOT CONNECTED" }}</strong></div>
         <div class="backend-url" id="backendUrl">{{ backend_status.url }}</div>
         <div id="backendError" style="margin-top:6px;{% if not backend_status.error %}display:none;{% endif %}">{{ backend_status.error or "" }}</div>
+        <div id="syncWarning" class="sync-note {% if backend_status.sync_warning %}bad{% else %}ok{% endif %}">
+          {{ backend_status.sync_warning or "Sync looks healthy across CALDERA and Neo4j." }}
+        </div>
         <div class="backend-grid">
           <div class="backend-chip"><strong id="backendOps">{{ backend_status.operations }}</strong><span>Operations</span></div>
-          <div class="backend-chip"><strong id="backendAgents">{{ backend_status.agents }}</strong><span>Agents</span></div>
+          <div class="backend-chip"><strong id="backendAgents">{{ backend_status.agents }}</strong><span>Caldera Agents</span></div>
+          <div class="backend-chip"><strong id="backendNeo4j">{{ backend_status.neo4j_agents }}</strong><span>Neo4j Agents</span></div>
+          <div class="backend-chip"><strong id="backendAlive">{{ backend_status.alive_agents }}</strong><span>Alive Agents</span></div>
+          <div class="backend-chip"><strong id="backendUntrusted">{{ backend_status.untrusted_agents }}</strong><span>Untrusted</span></div>
           <div class="backend-chip"><strong id="backendAbilities">{{ backend_status.abilities }}</strong><span>Abilities</span></div>
           <div class="backend-chip"><strong id="backendConfig">{{ "YES" if backend_status.configured else "NO" }}</strong><span>Env Configured</span></div>
         </div>
@@ -501,27 +1455,49 @@
 
       <div class="mitre">
         <h3>Current Attack Focus</h3>
-        <div id="attackFocus" class="focus-card">Select a likely attack or attack path to guide the chatbot.</div>
-      </div>
-
-      <div class="mitre">
-        <h3>WSL Adversary Model</h3>
-        <div id="adversaryModel" class="focus-card">Loading adversary model...</div>
-      </div>
-
-      <div class="chat-panel">
-        <h3 style="margin:0 0 8px;color:#7fe6ff;">SOC Learning Bot</h3>
-        <div id="chatLog" class="chat-log">Bot: Ask me about attack risk, path, and mitigations.</div>
-        <div class="chat-row">
-          <input id="chatInput" placeholder="Ask: how to face this attack?">
-          <button id="chatSendBtn">Send</button>
-        </div>
+        <div id="attackFocus" class="focus-card">Select a likely attack or attack path to guide the defense advisor.</div>
       </div>
     </aside>
 
-    <section id="graph-wrap">
-      <div id="graph"></div>
-      <div id="empty" class="empty" style="display:none;">No graph data available for selected filters.</div>
+    <section class="graph-shell">
+      <div class="graph-stage">
+        <div class="graph-header">
+          <div>
+            <div class="graph-kicker">Live SOC Triage</div>
+            <h2 class="graph-headline">Attack Path Graph</h2>
+            <p id="graphMeta" class="graph-subtitle">Live attack graph of agent activity, observed facts, and chained progression for faster triage.</p>
+          </div>
+          <div class="graph-summary-grid">
+            <div class="graph-summary-card">
+              <span>Nodes</span>
+              <strong id="graphNodeCount">0</strong>
+            </div>
+            <div class="graph-summary-card">
+              <span>Edges</span>
+              <strong id="graphEdgeCount">0</strong>
+            </div>
+            <div class="graph-summary-card">
+              <span>Paths</span>
+              <strong id="graphPathCount">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="graph-status-bar">
+          <div class="graph-legend-inline">
+            <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f6c453;"></span> Agent Root</span>
+            <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4f7cff;"></span> Observed Fact</span>
+            <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8fd8ff;"></span> Executed</span>
+            <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#ff5a6f;"></span> Next Chain</span>
+          </div>
+          <div id="graphStatusNote" class="graph-help"><strong>Graph view:</strong> use shape, color, and links together to trace how agent activity connects into follow-on evidence.</div>
+        </div>
+
+        <section id="graph-wrap">
+          <div id="graph"></div>
+          <div id="empty" class="empty" style="display:none;">No graph data available for selected filters.</div>
+        </section>
+      </div>
     </section>
   </div>
 
@@ -529,10 +1505,15 @@
     let cy = null;
     let autoRefresh = true;
     let timerId = null;
+    let attackerMap = null;
+    let attackerMapLayer = null;
+    let latestLiveOverview = null;
     const initialGraph = {{ graph | tojson | safe }};
     const initialBackendStatus = {{ backend_status | tojson | safe }};
+    const initialLiveOverview = {{ live_overview | tojson | safe }};
 
     const agentFilter = document.getElementById('agentFilter');
+    const graphAgentStateFilter = document.getElementById('graphAgentStateFilter');
     const targetFilter = document.getElementById('targetFilter');
     const autoBtn = document.getElementById('autoBtn');
     const tutorMode = document.getElementById('tutorMode');
@@ -541,11 +1522,31 @@
     const scenarioList = document.getElementById('scenarioList');
     const pathList = document.getElementById('pathList');
     const attackFocus = document.getElementById('attackFocus');
-    const adversaryModel = document.getElementById('adversaryModel');
     const defenseLog = document.getElementById('defenseLog');
     const defenseInput = document.getElementById('defenseInput');
-    const chatLog = document.getElementById('chatLog');
-    const chatInput = document.getElementById('chatInput');
+    const graphMeta = document.getElementById('graphMeta');
+    const graphNodeCount = document.getElementById('graphNodeCount');
+    const graphEdgeCount = document.getElementById('graphEdgeCount');
+    const graphPathCount = document.getElementById('graphPathCount');
+    const graphStatusNote = document.getElementById('graphStatusNote');
+    const missionRiskValue = document.getElementById('missionRiskValue');
+    const missionRiskScore = document.getElementById('missionRiskScore');
+    const missionRiskDetail = document.getElementById('missionRiskDetail');
+    const missionScopeValue = document.getElementById('missionScopeValue');
+    const missionScopeDetail = document.getElementById('missionScopeDetail');
+    const missionSyncCard = document.getElementById('missionSyncCard');
+    const missionSyncValue = document.getElementById('missionSyncValue');
+    const missionSyncDetail = document.getElementById('missionSyncDetail');
+    const missionOpsValue = document.getElementById('missionOpsValue');
+    const missionOpsDetail = document.getElementById('missionOpsDetail');
+    const operationMirrorList = document.getElementById('operationMirrorList');
+    const operationMirrorBadge = document.getElementById('operationMirrorBadge');
+    const mappedAttackersBadge = document.getElementById('mappedAttackersBadge');
+    const mapAgentCount = document.getElementById('mapAgentCount');
+    const mapMappedCount = document.getElementById('mapMappedCount');
+    const analystLocationCard = document.getElementById('analystLocationCard');
+    const mapMarkerList = document.getElementById('mapMarkerList');
+    const mapHoverCardBody = document.getElementById('mapHoverCardBody');
     let latestScenarioFocuses = [];
     let latestPathFocuses = [];
     let latestRecommendations = [];
@@ -553,6 +1554,7 @@
     let selectedFocus = null;
     let selectedRecommendation = '';
     let selectedAgentProfile = null;
+    let graphAgentStateMode = (initialGraph && initialGraph.meta && initialGraph.meta.agent_state_filter) || 'all';
 
     function renderBackendStatus(status) {
       const panel = document.getElementById('backendPanel');
@@ -563,15 +1565,43 @@
       document.getElementById('backendUrl').textContent = status.url || 'Not configured';
       document.getElementById('backendOps').textContent = status.operations || 0;
       document.getElementById('backendAgents').textContent = status.agents || 0;
+      document.getElementById('backendNeo4j').textContent = status.neo4j_agents || 0;
+      document.getElementById('backendAlive').textContent = status.alive_agents || 0;
+      document.getElementById('backendUntrusted').textContent = status.untrusted_agents || 0;
       document.getElementById('backendAbilities').textContent = status.abilities || 0;
       document.getElementById('backendConfig').textContent = status.configured ? 'YES' : 'NO';
       const errorEl = document.getElementById('backendError');
+      const syncWarning = document.getElementById('syncWarning');
       if (status.error) {
         errorEl.style.display = 'block';
         errorEl.textContent = status.error;
       } else {
         errorEl.style.display = 'none';
         errorEl.textContent = '';
+      }
+      if (syncWarning) {
+        const syncMessage = status.sync_warning
+          || (status.connected ? 'Sync looks healthy across CALDERA and Neo4j.' : 'Sync status will update after backend connectivity is restored.');
+        syncWarning.textContent = syncMessage;
+        syncWarning.classList.toggle('bad', !!status.sync_warning);
+        syncWarning.classList.toggle('ok', !status.sync_warning);
+      }
+      if (missionSyncCard) {
+        missionSyncCard.classList.toggle('warn', !!status.sync_warning);
+        missionSyncCard.classList.toggle('ok', !status.sync_warning && !!status.connected);
+      }
+      if (missionSyncValue) {
+        missionSyncValue.textContent = status.sync_warning ? 'Warning' : (status.connected ? 'Healthy' : 'Offline');
+      }
+      if (missionSyncDetail) {
+        missionSyncDetail.textContent = status.sync_warning
+          || (status.connected ? 'CALDERA, Neo4j, and the dashboard are aligned.' : 'Waiting for the backend connection to recover.');
+      }
+      if (missionOpsValue) {
+        missionOpsValue.textContent = status.operations || 0;
+      }
+      if (missionOpsDetail) {
+        missionOpsDetail.textContent = `${status.agents || 0} agents, ${status.alive_agents || 0} alive, ${status.abilities || 0} abilities currently reachable.`;
       }
     }
 
@@ -580,12 +1610,24 @@
       selectEl.innerHTML = `<option value="">${label}</option>`;
       values.forEach(v => {
         const opt = document.createElement('option');
-        opt.value = v;
-        opt.textContent = v;
+        if (typeof v === 'object' && v !== null) {
+          opt.value = v.value || '';
+          opt.textContent = v.label || v.value || '';
+        } else {
+          opt.value = v;
+          opt.textContent = v;
+        }
         selectEl.appendChild(opt);
       });
       if ([...selectEl.options].some(o => o.value === current)) {
         selectEl.value = current;
+      }
+    }
+
+    function setGraphAgentStateMode(mode) {
+      graphAgentStateMode = ['all', 'alive', 'dead'].includes(mode) ? mode : 'all';
+      if (graphAgentStateFilter) {
+        graphAgentStateFilter.value = graphAgentStateMode;
       }
     }
 
@@ -596,6 +1638,674 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    function truncateGraphLabel(value, limit = 30) {
+      const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+      if (!normalized) return 'Unknown';
+      return normalized.length > limit ? `${normalized.slice(0, Math.max(0, limit - 3))}...` : normalized;
+    }
+
+    function normalizeStateClass(value) {
+      const normalized = String(value || '').toLowerCase();
+      if (['finished', 'cleanup', 'closed', 'archived', 'out_of_time'].includes(normalized)) return 'finished';
+      if (normalized === 'dead') return 'dead';
+      return 'active';
+    }
+
+    function formatMapLabel(location) {
+      if (!location) return 'Unknown location';
+      const parts = [location.city, location.region, location.country].filter(Boolean);
+      return parts.join(', ') || location.label || 'Unknown location';
+    }
+
+    function formatGeoSource(source) {
+      if (!source) return 'location intelligence';
+      if (source === 'agent_ip') return 'agent IP';
+      if (source === 'analyst_console') return 'analyst console';
+      if (source === 'host_public_ip') return 'host public IP';
+      return String(source).replace(/_/g, ' ');
+    }
+
+    function formatCoordinate(value) {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric.toFixed(5) : 'n/a';
+    }
+
+    function formatCoordinatePair(latitude, longitude) {
+      return `${formatCoordinate(latitude)}, ${formatCoordinate(longitude)}`;
+    }
+
+    function coordinateKey(latitude, longitude) {
+      return `${formatCoordinate(latitude)}|${formatCoordinate(longitude)}`;
+    }
+
+    function offsetLatLng(latitude, longitude, index, total) {
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || total <= 1) {
+        return [lat, lng];
+      }
+      const spacing = 0.00042;
+      const start = -((total - 1) * spacing) / 2;
+      return [lat, lng + start + (index * spacing)];
+    }
+
+    function formatAddress(location) {
+      if (!location) return 'Unknown address';
+      const parts = [location.city, location.region, location.country, location.postal].filter(Boolean);
+      return parts.join(', ') || location.label || 'Unknown address';
+    }
+
+    function buildAttackKnowledge(marker, role = 'attacker') {
+      if (role === 'attacked') {
+        const knowledge = marker?.reason || 'Target reference location used to compare lab activity against CALDERA and the dashboard.';
+        return `Attack knowledge: ${knowledge}`;
+      }
+      const user = marker?.username || 'unknown user';
+      const host = marker?.host || 'unknown host';
+      const platform = marker?.platform || 'unknown platform';
+      const privilege = marker?.privilege || 'unknown privilege';
+      const status = marker?.status || 'unknown';
+      return `Attack knowledge: ${user} on ${host} | ${platform} | ${privilege} | ${status}`;
+    }
+
+    function buildMapHoverHtml(marker, role = 'attacker', context = {}) {
+      const title = escapeHtml(marker?.username || marker?.display_name || marker?.host || marker?.paw || (role === 'attacked' ? 'Attacked target' : 'Attacker'));
+      const address = escapeHtml(formatAddress(marker));
+      const coords = escapeHtml(formatCoordinatePair(marker?.latitude, marker?.longitude));
+      const knowledge = escapeHtml(buildAttackKnowledge(marker, role));
+      const counterpartMarkup = role === 'attacker' && context.target
+        ? `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(127,230,255,.12);">
+            <div style="font-weight:700;color:#ffb5c4;margin-bottom:4px;">Target detail</div>
+            <div>Address: ${escapeHtml(formatAddress(context.target))}</div>
+            <div>Coordinates: ${escapeHtml(formatCoordinatePair(context.target.latitude, context.target.longitude))}</div>
+            <div style="margin-top:4px;color:#ffd0da;">${escapeHtml(buildAttackKnowledge(context.target, 'attacked'))}</div>
+          </div>
+        `
+        : '';
+      const attackerMarkup = role === 'attacked' && Array.isArray(context.attackers) && context.attackers.length
+        ? `
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(127,230,255,.12);">
+            <div style="font-weight:700;color:#ffe0a8;margin-bottom:4px;">Attacker detail</div>
+            ${context.attackers.slice(0, 3).map((item) => `
+              <div style="margin-top:4px;">
+                <div>${escapeHtml(item.username || item.display_name || item.host || item.paw || 'Attacker')}</div>
+                <div style="color:#ffe0a8;">${escapeHtml(buildAttackKnowledge(item, 'attacker').replace(/^Attack knowledge:\s*/, ''))}</div>
+              </div>
+            `).join('')}
+          </div>
+        `
+        : '';
+      return `
+        <div style="min-width:220px;line-height:1.55;">
+          <div style="font-weight:800;color:#f1fbff;margin-bottom:6px;">${title}</div>
+          <div>Address: ${address}</div>
+          <div>Coordinates: ${coords}</div>
+          <div style="margin-top:4px;color:#bfeeff;">${knowledge}</div>
+          ${counterpartMarkup}
+          ${attackerMarkup}
+        </div>
+      `;
+    }
+
+    function setMapHoverCard(html) {
+      if (!mapHoverCardBody) return;
+      mapHoverCardBody.innerHTML = html || 'Hover an attacker or target pin to inspect address, coordinates, and attack context here.';
+    }
+
+    function buildPinIcon(marker, variant = 'attacker') {
+      const stateClass = normalizeStateClass(marker?.status);
+      const classes = ['map-pin', variant === 'target' || variant === 'analyst' ? 'target' : 'attacker'];
+      if (stateClass === 'dead') classes.push('dead');
+      return L.divIcon({
+        className: '',
+        html: `
+          <div class="${classes.join(' ')}">
+            <div class="map-pin-shape"></div>
+            <div class="map-pin-dot"></div>
+          </div>
+        `,
+        iconSize: [28, 38],
+        iconAnchor: [14, 38],
+        popupAnchor: [0, -34],
+        tooltipAnchor: [0, -34]
+      });
+    }
+
+    function buildMapPopup(marker) {
+      const title = escapeHtml(marker.display_name || marker.host || marker.paw || 'Agent');
+      const user = escapeHtml(marker.username || 'unknown user');
+      const host = escapeHtml(marker.host || 'unknown host');
+      const status = escapeHtml(marker.status || 'unknown');
+      const platform = escapeHtml(marker.platform || 'unknown platform');
+      const privilege = escapeHtml(marker.privilege || 'unknown privilege');
+      const group = escapeHtml(marker.group || 'unknown group');
+      const location = escapeHtml(formatMapLabel(marker));
+      const source = escapeHtml(formatGeoSource(marker.source));
+      const coords = escapeHtml(formatCoordinatePair(marker.latitude, marker.longitude));
+      const ipText = escapeHtml((marker.candidate_ips || []).join(', ') || marker.ip || 'unknown IP');
+      return `
+        <div style="min-width:220px;">
+          <div style="font-weight:800;color:#f1fbff;margin-bottom:6px;">${title}</div>
+          <div style="font-size:12px;color:#9ec5df;line-height:1.55;">Attacked user: ${user}<br>Host: ${host}<br>Status: ${status}<br>Platform: ${platform}<br>Privilege: ${privilege}<br>Group: ${group}<br>Location: ${location}<br>Coordinates: ${coords}<br>IP: ${ipText}<br>Source: ${source}</div>
+        </div>
+      `;
+    }
+
+    function renderOperationMirror(operations) {
+      operationMirrorList.innerHTML = '';
+      if (!operations || !operations.length) {
+        operationMirrorList.innerHTML = '<div class="overview-empty">No CALDERA operations are active yet. Launch an operation to bring live execution details back into this panel.</div>';
+        return;
+      }
+
+      operations.slice(0, 4).forEach((operation) => {
+        const stateClass = normalizeStateClass(operation.state);
+        const card = document.createElement('div');
+        card.className = 'operation-item';
+        card.innerHTML = `
+          <div class="operation-item-top">
+            <div class="operation-name">${escapeHtml(operation.name || 'Operation')}</div>
+            <div class="operation-state ${stateClass}">${escapeHtml(operation.state || 'unknown')}</div>
+          </div>
+          <div class="operation-meta">Adversary: ${escapeHtml(operation.adversary || 'unknown')} | Group: ${escapeHtml(operation.host_group || 'unknown')}</div>
+          <div class="operation-chips">
+            <span class="overview-chip">${escapeHtml(operation.agent_count || 0)} agents</span>
+            <span class="overview-chip">${escapeHtml(operation.chain_count || 0)} links</span>
+            <span class="overview-chip">${escapeHtml(operation.completed_links || 0)} complete</span>
+            <span class="overview-chip">${escapeHtml(operation.failed_links || 0)} failed</span>
+          </div>
+        `;
+        operationMirrorList.appendChild(card);
+      });
+    }
+
+    function renderAnalystLocation(analystLocation) {
+      if (!analystLocation || analystLocation.latitude == null || analystLocation.longitude == null) {
+        analystLocationCard.innerHTML = '<div class="overview-empty">Analyst console location is not configured yet, so private-lab agents cannot be pinned to a reference point.</div>';
+        return;
+      }
+      analystLocationCard.innerHTML = `
+        <div class="operation-item-top">
+          <div class="operation-name">Analyst Console</div>
+          <div class="operation-state">reference</div>
+        </div>
+        <div class="operation-meta">${escapeHtml(analystLocation.label || formatMapLabel(analystLocation))}</div>
+        <div class="operation-chips">
+          <span class="overview-chip">${escapeHtml(analystLocation.latitude)}</span>
+          <span class="overview-chip">${escapeHtml(analystLocation.longitude)}</span>
+          <span class="overview-chip">${escapeHtml(analystLocation.source || 'configured')}</span>
+        </div>
+      `;
+    }
+
+    function renderMarkerList(markers) {
+      mapMarkerList.innerHTML = '';
+      if (!markers || !markers.length) {
+        mapMarkerList.innerHTML = '<div class="overview-empty">No attack markers are available yet. If your agents only expose private addresses, the dashboard will fall back to the analyst-console location once that context is available.</div>';
+        return;
+      }
+
+      markers.slice(0, 5).forEach((marker) => {
+        const stateClass = normalizeStateClass(marker.status);
+        const item = document.createElement('div');
+        item.className = 'marker-item';
+        item.innerHTML = `
+          <div class="marker-item-top">
+            <div class="marker-name">${escapeHtml(marker.display_name || marker.host || marker.paw || 'Agent')}</div>
+            <div class="marker-state ${stateClass}">${escapeHtml(marker.status || 'unknown')}</div>
+          </div>
+          <div class="marker-meta">${escapeHtml(marker.username || 'unknown user')} on ${escapeHtml(marker.host || 'unknown host')} | ${escapeHtml(formatMapLabel(marker))}</div>
+          <div class="marker-chips">
+            <span class="overview-chip">${escapeHtml(marker.platform || 'unknown platform')}</span>
+            <span class="overview-chip">${escapeHtml(marker.privilege || 'unknown privilege')}</span>
+            <span class="overview-chip">${escapeHtml(marker.host || 'unknown host')}</span>
+            <span class="overview-chip">${escapeHtml(formatCoordinatePair(marker.latitude, marker.longitude))}</span>
+            <span class="overview-chip">${escapeHtml(formatGeoSource(marker.source))}</span>
+          </div>
+        `;
+        mapMarkerList.appendChild(item);
+      });
+    }
+
+    function renderMapFallback(markers, analystLocation, reason = '') {
+      const target = document.getElementById('attackerMap');
+      if (!target) return;
+      if (attackerMap) {
+        attackerMap.remove();
+        attackerMap = null;
+        attackerMapLayer = null;
+      }
+      const markerCount = Array.isArray(markers) ? markers.length : 0;
+      const locationText = analystLocation ? escapeHtml(analystLocation.label || formatMapLabel(analystLocation)) : 'No analyst location configured';
+      const reasonText = reason || (markerCount
+        ? 'Map tiles are unavailable in this session, but the live agent locations are still listed beside the map.'
+        : 'No mappable attacker positions are available yet. The side panel will still show any analyst reference location.');
+      target.innerHTML = `
+        <div class="map-fallback">
+          <div class="map-fallback-title">Map view unavailable</div>
+          <div class="map-fallback-detail">${escapeHtml(reasonText)}</div>
+          <div class="operation-chips">
+            <span class="overview-chip">${markerCount} markers</span>
+            <span class="overview-chip">${locationText}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAttackerMap(markers, analystLocation) {
+      const target = document.getElementById('attackerMap');
+      if (!target) return;
+
+      const validMarkers = (markers || []).filter((marker) =>
+        marker && Number.isFinite(Number(marker.latitude)) && Number.isFinite(Number(marker.longitude))
+      );
+
+      if (typeof window.L !== 'object') {
+        renderMapFallback(validMarkers, analystLocation, 'Leaflet did not load, so the dashboard switched to a local map fallback.');
+        return;
+      }
+
+      if (!validMarkers.length && (!analystLocation || analystLocation.latitude == null || analystLocation.longitude == null)) {
+        renderMapFallback([], analystLocation, 'There is not enough geolocation data yet to center the live attacker map.');
+        return;
+      }
+
+      if (!attackerMap) {
+        target.innerHTML = '';
+        attackerMap = L.map(target, {
+          zoomControl: true,
+          attributionControl: true
+        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(attackerMap);
+        attackerMapLayer = L.layerGroup().addTo(attackerMap);
+      } else {
+        attackerMapLayer.clearLayers();
+      }
+
+      setMapHoverCard('');
+
+      const targetReference = (analystLocation && analystLocation.latitude != null && analystLocation.longitude != null)
+        ? {
+            username: 'Attacked Target',
+            display_name: analystLocation.label || 'Attacked Target',
+            status: 'active',
+            latitude: Number(analystLocation.latitude),
+            longitude: Number(analystLocation.longitude),
+            city: analystLocation.city,
+            region: analystLocation.region,
+            country: analystLocation.country,
+            postal: analystLocation.postal,
+            label: analystLocation.label,
+            reason: 'Reference attacked location in the local lab used to compare victim-side visibility with CALDERA activity.'
+          }
+        : null;
+
+      const colocatedAttackers = new Map();
+      validMarkers.forEach((marker) => {
+        const key = coordinateKey(marker.latitude, marker.longitude);
+        if (!colocatedAttackers.has(key)) colocatedAttackers.set(key, []);
+        colocatedAttackers.get(key).push(marker);
+      });
+
+      const markerEntries = validMarkers.map((marker) => ({
+        role: 'attacker',
+        marker,
+        latitude: Number(marker.latitude),
+        longitude: Number(marker.longitude)
+      }));
+
+      if (targetReference && Number.isFinite(targetReference.latitude) && Number.isFinite(targetReference.longitude)) {
+        markerEntries.push({
+          role: 'target',
+          marker: targetReference,
+          latitude: targetReference.latitude,
+          longitude: targetReference.longitude
+        });
+      }
+
+      const groupedEntries = new Map();
+      markerEntries.forEach((entry) => {
+        const key = coordinateKey(entry.latitude, entry.longitude);
+        if (!groupedEntries.has(key)) groupedEntries.set(key, []);
+        groupedEntries.get(key).push(entry);
+      });
+
+      const bounds = [];
+      groupedEntries.forEach((entries, key) => {
+        entries.forEach((entry, index) => {
+          const [lat, lng] = offsetLatLng(entry.latitude, entry.longitude, index, entries.length);
+          if (entry.role === 'attacker') {
+            const markerNode = L.marker([lat, lng], {
+              icon: buildPinIcon(entry.marker, 'attacker'),
+              keyboard: true,
+              title: entry.marker.username || entry.marker.display_name || entry.marker.host || entry.marker.paw || 'Attacker location'
+            }).bindPopup(buildMapPopup(entry.marker));
+            markerNode.on('mouseover', () => {
+              setMapHoverCard(buildMapHoverHtml(entry.marker, 'attacker', {
+                target: entries.find((item) => item.role === 'target')?.marker || null
+              }));
+            });
+            markerNode.on('mouseout', () => {
+              setMapHoverCard('');
+            });
+            attackerMapLayer.addLayer(markerNode);
+            bounds.push([lat, lng]);
+            return;
+          }
+
+          const attackersHere = colocatedAttackers.get(key) || [];
+          const targetNode = L.marker([lat, lng], {
+            icon: buildPinIcon(entry.marker, 'target'),
+            keyboard: true,
+            title: 'Attacked target location'
+          }).bindPopup(`
+            <div style="min-width:210px;">
+              <div style="font-weight:800;color:#f1fbff;margin-bottom:6px;">Attacked Target</div>
+              <div style="font-size:12px;color:#9ec5df;line-height:1.55;">Address: ${escapeHtml(formatAddress(entry.marker))}<br>Coordinates: ${escapeHtml(formatCoordinatePair(entry.marker.latitude, entry.marker.longitude))}<br>${escapeHtml(buildAttackKnowledge(entry.marker, 'attacked'))}</div>
+              ${attackersHere.length ? `<div style="margin-top:8px;font-size:12px;color:#ffe0a8;">Attackers here: ${escapeHtml(attackersHere.map((item) => item.username || item.display_name || item.host || item.paw || 'Attacker').join(', '))}</div>` : ''}
+            </div>
+          `);
+          targetNode.on('mouseover', () => {
+            setMapHoverCard(buildMapHoverHtml(entry.marker, 'attacked', {
+              attackers: attackersHere
+            }));
+          });
+          targetNode.on('mouseout', () => {
+            setMapHoverCard('');
+          });
+          attackerMapLayer.addLayer(targetNode);
+          bounds.push([lat, lng]);
+        });
+      });
+
+      if (bounds.length === 1) {
+        attackerMap.setView(bounds[0], 6);
+      } else {
+        attackerMap.fitBounds(bounds, { padding: [30, 30] });
+      }
+
+      window.setTimeout(() => {
+        if (attackerMap) attackerMap.invalidateSize();
+      }, 80);
+    }
+
+    function filterLiveOverview(overview) {
+      const source = overview || {};
+      if (!agentFilter.value) return source;
+      const normalized = String(agentFilter.value);
+      const markers = (source.map_markers || []).filter((marker) =>
+        [marker.paw, marker.display_name, marker.host].some((value) => String(value || '') === normalized)
+      );
+      const agents = (source.agents || []).filter((agent) =>
+        [agent.paw, agent.display_name, agent.host].some((value) => String(value || '') === normalized)
+      );
+      return {
+        ...source,
+        agents,
+        map_markers: markers,
+        stats: {
+          ...(source.stats || {}),
+          agent_total: agents.length,
+          mapped_attackers: markers.length
+        }
+      };
+    }
+
+    function renderLiveOverview(overview) {
+      latestLiveOverview = overview || {};
+      const scopedOverview = filterLiveOverview(latestLiveOverview);
+      const stats = scopedOverview.stats || {};
+      renderOperationMirror(scopedOverview.operations || []);
+      renderAnalystLocation(scopedOverview.analyst_location || latestLiveOverview.analyst_location || {});
+      renderMarkerList(scopedOverview.map_markers || []);
+      renderAttackerMap(scopedOverview.map_markers || [], scopedOverview.analyst_location || latestLiveOverview.analyst_location || {});
+
+      if (operationMirrorBadge) {
+        operationMirrorBadge.innerHTML = `<strong>${escapeHtml(stats.operation_running || 0)}</strong> active`;
+      }
+      if (mappedAttackersBadge) {
+        mappedAttackersBadge.innerHTML = `<strong>${escapeHtml(stats.mapped_attackers || 0)}</strong> mapped`;
+      }
+      if (mapAgentCount) {
+        mapAgentCount.textContent = stats.agent_total || 0;
+      }
+      if (mapMappedCount) {
+        mapMappedCount.textContent = stats.mapped_attackers || 0;
+      }
+    }
+
+    function ensureGraphLoadingOverlay() {
+      const wrap = document.getElementById('graph-wrap');
+      let overlay = wrap.querySelector('.graph-loading');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'graph-loading';
+        overlay.innerHTML = `
+          <div class="graph-loading-card">
+            <div class="graph-spinner"></div>
+            <div data-graph-loading-text>Loading attack graph...</div>
+          </div>
+        `;
+        wrap.appendChild(overlay);
+      }
+      return overlay;
+    }
+
+    function setGraphLoading(isLoading, message = 'Loading attack graph...') {
+      const overlay = ensureGraphLoadingOverlay();
+      const label = overlay.querySelector('[data-graph-loading-text]');
+      if (label) label.textContent = message;
+      overlay.style.display = isLoading ? 'flex' : 'none';
+    }
+
+    function renderGraphMessage(title, detail, tone = 'info') {
+      const graphEl = document.getElementById('graph');
+      graphEl.innerHTML = `
+        <div class="graph-message ${tone === 'error' ? 'error' : ''}">
+          <div class="graph-message-title">${escapeHtml(title)}</div>
+          <div class="graph-message-detail">${escapeHtml(detail)}</div>
+        </div>
+      `;
+    }
+
+    function fallbackNodeFrame(node) {
+      return node.type === 'agent'
+        ? { width: 150, height: 102, shape: 'diamond' }
+        : { width: 108, height: 108, shape: 'circle' };
+    }
+
+    function fallbackNodeMeta(node) {
+      if (node.type === 'agent') {
+        return truncateGraphLabel([node.display_name || node.host, node.status, node.platform].filter(Boolean).join(' | '), 38);
+      }
+      return truncateGraphLabel([node.technique, node.target].filter(Boolean).join(' | '), 38);
+    }
+
+    function buildFallbackGraphLayout(graphData) {
+      const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : [];
+      const edges = Array.isArray(graphData?.edges) ? graphData.edges : [];
+      const positions = {};
+      const width = 980;
+      const height = 620;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const agentNodes = nodes
+        .map((item) => item?.data || {})
+        .filter((data) => data.id && data.type === 'agent')
+        .sort((left, right) => String(left.label || left.id).localeCompare(String(right.label || right.id)));
+      const factNodes = nodes
+        .map((item) => item?.data || {})
+        .filter((data) => data.id && data.type !== 'agent')
+        .sort((left, right) => String(left.label || left.id).localeCompare(String(right.label || right.id)));
+
+      const agentRadius = Math.max(0, agentNodes.length - 1) * 82;
+      agentNodes.forEach((item, index) => {
+        if (agentNodes.length === 1) {
+          positions[item.id] = { x: centerX, y: centerY };
+          return;
+        }
+        const angle = ((Math.PI * 2) / agentNodes.length) * index - (Math.PI / 2);
+        positions[item.id] = {
+          x: centerX + Math.cos(angle) * agentRadius,
+          y: centerY + Math.sin(angle) * Math.min(160, agentRadius)
+        };
+      });
+
+      const adjacency = new Map();
+      edges.forEach((edge) => {
+        const data = edge?.data || {};
+        if (!data.source || !data.target) return;
+        if (!adjacency.has(data.source)) adjacency.set(data.source, []);
+        adjacency.get(data.source).push(data.target);
+      });
+
+      const placedFacts = new Set();
+      agentNodes.forEach((agent, agentIndex) => {
+        const linkedFacts = (adjacency.get(agent.id) || [])
+          .filter((targetId) => factNodes.some((fact) => fact.id === targetId))
+          .map((targetId) => factNodes.find((fact) => fact.id === targetId))
+          .filter(Boolean);
+        const origin = positions[agent.id] || { x: centerX, y: centerY };
+        linkedFacts.forEach((fact, factIndex) => {
+          if (placedFacts.has(fact.id)) return;
+          const spread = Math.max(linkedFacts.length - 1, 1);
+          const angleOffset = spread === 1 ? 0 : ((factIndex / spread) - 0.5) * 1.35;
+          const baseAngle = agentNodes.length > 1
+            ? ((Math.PI * 2) / agentNodes.length) * agentIndex - (Math.PI / 2)
+            : -Math.PI / 2;
+          const radius = 150 + (factIndex % 2) * 34;
+          positions[fact.id] = {
+            x: origin.x + Math.cos(baseAngle + angleOffset) * radius,
+            y: origin.y + Math.sin(baseAngle + angleOffset) * radius
+          };
+          placedFacts.add(fact.id);
+        });
+      });
+
+      const unplacedFacts = factNodes.filter((fact) => !placedFacts.has(fact.id));
+      unplacedFacts.forEach((fact, index) => {
+        const angle = ((Math.PI * 2) / Math.max(unplacedFacts.length, 1)) * index - (Math.PI / 2);
+        positions[fact.id] = {
+          x: centerX + Math.cos(angle) * 230,
+          y: centerY + Math.sin(angle) * 210
+        };
+      });
+
+      return { positions, width, height };
+    }
+
+    function renderFallbackGraph(graphData, reason = '') {
+      const graphEl = document.getElementById('graph');
+      const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : [];
+      const edges = Array.isArray(graphData?.edges) ? graphData.edges : [];
+      const nodeMap = new Map(nodes.map((item) => [item?.data?.id, item?.data || {}]));
+      const layout = buildFallbackGraphLayout(graphData);
+
+      const edgeMarkup = edges.map((edge) => {
+        const data = edge?.data || {};
+        const sourceNode = nodeMap.get(data.source);
+        const targetNode = nodeMap.get(data.target);
+        const sourcePos = layout.positions[data.source];
+        const targetPos = layout.positions[data.target];
+        if (!sourceNode || !targetNode || !sourcePos || !targetPos) return '';
+
+        const sourceFrame = fallbackNodeFrame(sourceNode);
+        const targetFrame = fallbackNodeFrame(targetNode);
+        const startX = sourcePos.x + (sourceFrame.width / 2);
+        const startY = sourcePos.y;
+        const endX = targetPos.x - (targetFrame.width / 2);
+        const endY = targetPos.y;
+        const color = data.relation === 'next' ? '#ff5a6f' : '#43d9bd';
+        const dash = data.relation === 'next' ? 'stroke-dasharray="10 7"' : '';
+        const marker = data.relation === 'next' ? 'url(#graphArrowNext)' : 'url(#graphArrowExec)';
+        const bend = Math.max(40, Math.abs(endX - startX) / 2.6);
+
+        return `<path d="M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}" fill="none" stroke="${color}" stroke-width="2.4" marker-end="${marker}" ${dash}></path>`;
+      }).join('');
+
+      const nodeMarkup = nodes.map((item) => {
+        const data = item?.data || {};
+        const pos = layout.positions[data.id];
+        if (!data.id || !pos) return '';
+
+        const frame = fallbackNodeFrame(data);
+        const x = pos.x - (frame.width / 2);
+        const y = pos.y - (frame.height / 2);
+        const label = escapeHtml(truncateGraphLabel(data.label || data.id, data.type === 'agent' ? 26 : 30));
+        const meta = escapeHtml(fallbackNodeMeta(data));
+        const isDead = String(data.status || '').toLowerCase() === 'dead';
+        const fill = data.type === 'agent'
+          ? (isDead ? '#ff8f8f' : '#f6c453')
+          : '#4f7cff';
+        const stroke = data.type === 'agent'
+          ? (isDead ? '#8b1e2d' : '#8e6b18')
+          : '#203f99';
+        const textColor = data.type === 'agent' ? '#11161d' : '#f5f9ff';
+        const metaColor = data.type === 'agent' ? '#3e2f0d' : '#cfe0ff';
+        const dataAgentId = data.type === 'agent' ? ` data-agent-id="${escapeHtml(data.id)}"` : '';
+        const shapeMarkup = data.type === 'agent'
+          ? `<polygon points="${pos.x},${y} ${x + frame.width},${pos.y} ${pos.x},${y + frame.height} ${x},${pos.y}" fill="${fill}" stroke="${stroke}" stroke-width="2"></polygon>`
+          : `<circle cx="${pos.x}" cy="${pos.y}" r="${frame.width / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2"></circle>`;
+        const labelY = data.type === 'agent' ? (pos.y - 10) : (pos.y - 7);
+        const metaY = data.type === 'agent' ? (pos.y + 12) : (pos.y + 13);
+
+        return `
+          <g class="graph-fallback-node" data-node-id="${escapeHtml(data.id)}"${dataAgentId}>
+            ${shapeMarkup}
+            <text x="${pos.x}" y="${labelY}" fill="${textColor}" font-size="13" font-family="Consolas, monospace" font-weight="700" text-anchor="middle">${label}</text>
+            <text x="${pos.x}" y="${metaY}" fill="${metaColor}" font-size="11" font-family="Consolas, monospace" text-anchor="middle">${meta}</text>
+          </g>
+        `;
+      }).join('');
+
+      const reasonMarkup = reason
+        ? `<div class="graph-fallback-note">${escapeHtml(reason)}</div>`
+        : '';
+
+      graphEl.innerHTML = `
+        <div class="graph-fallback">
+          <div class="graph-fallback-header">
+            <div class="graph-fallback-title">Attack Graph Fallback View</div>
+            <div class="graph-fallback-meta">${nodes.length} nodes | ${edges.length} edges</div>
+          </div>
+          ${reasonMarkup}
+          <div class="graph-fallback-legend">
+            <span class="graph-fallback-pill"><span class="graph-fallback-swatch" style="background:#f6c453;"></span> Agent Root</span>
+            <span class="graph-fallback-pill"><span class="graph-fallback-swatch" style="background:#4f7cff;"></span> Observed Fact</span>
+            <span class="graph-fallback-pill"><span class="graph-fallback-swatch" style="background:#8fd8ff;"></span> Executed</span>
+            <span class="graph-fallback-pill"><span class="graph-fallback-swatch" style="background:#ff5a6f;"></span> Next Chain</span>
+          </div>
+          <div class="graph-fallback-canvas">
+            <svg class="graph-fallback-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Attack graph fallback rendering">
+              <defs>
+                <marker id="graphArrowExec" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#43d9bd"></path>
+                </marker>
+                <marker id="graphArrowNext" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff5a6f"></path>
+                </marker>
+              </defs>
+              ${edgeMarkup}
+              ${nodeMarkup}
+            </svg>
+          </div>
+        </div>
+      `;
+
+      graphEl.querySelectorAll('[data-agent-id]').forEach((nodeEl) => {
+        nodeEl.addEventListener('click', () => {
+          const agentId = nodeEl.getAttribute('data-agent-id') || '';
+          if (!agentId || agentFilter.value === agentId) return;
+          agentFilter.value = agentId;
+          fetchAndRender();
+        });
+      });
     }
 
     function focusId(focus) {
@@ -617,9 +2327,8 @@
 
     function renderSelectedFocus() {
       if (!selectedFocus) {
-        attackFocus.textContent = 'Select a likely attack or attack path to guide the chatbot.';
+        attackFocus.textContent = 'Select a likely attack or attack path to guide the defense advisor.';
         const agentText = selectedAgentProfile ? ` for ${selectedAgentProfile.agent_id}` : '';
-        chatInput.placeholder = `Ask: how to face this attack${agentText}?`;
         defenseInput.placeholder = `Ask: what is the best defense${agentText}?`;
         markSelectedFocus();
         return;
@@ -632,13 +2341,12 @@
 
       attackFocus.innerHTML = `
         <div class="focus-title">${escapeHtml(selectedFocus.title)}</div>
-        <div class="focus-subtitle">${escapeHtml(selectedFocus.summary || 'Focused incident context for the chatbot.')}</div>
+        <div class="focus-subtitle">${escapeHtml(selectedFocus.summary || 'Focused incident context for the defense advisor.')}</div>
         ${techniques ? `<div class="focus-tags">${techniques}</div>` : ''}
         <div><strong>Guidance:</strong> ${escapeHtml(selectedFocus.guidance || 'Use this focus to ask about containment, detection, or validation.')}</div>
         ${selectedAgentProfile ? `<div style="margin-top:8px;"><strong>Selected agent:</strong> ${escapeHtml(selectedAgentProfile.agent_id)} | ${escapeHtml(selectedAgentProfile.risk_level)} ${escapeHtml(selectedAgentProfile.risk_score)}</div>` : ''}
       `;
       const agentText = selectedAgentProfile ? ` on ${selectedAgentProfile.agent_id}` : '';
-      chatInput.placeholder = `Ask about ${selectedFocus.title.toLowerCase()}${agentText}`;
       defenseInput.placeholder = `Ask how to defend ${selectedFocus.title.toLowerCase()}${agentText}`;
       markSelectedFocus();
     }
@@ -747,6 +2455,19 @@
 
       const critical = document.getElementById('criticalBanner');
       critical.style.display = (summary.risk_level === 'CRITICAL') ? 'block' : 'none';
+
+      if (missionRiskValue) {
+        missionRiskValue.innerHTML = `<span class="accent">${escapeHtml(summary.risk_level || 'LOW')}</span> <span id="missionRiskScore">${escapeHtml(summary.risk_score || 0)}</span>`;
+      }
+      if (missionRiskDetail) {
+        missionRiskDetail.textContent = `Attack chains: ${summary.chain_count || 0}. MITRE techniques: ${summary.technique_count || 0}. Keep focus on the most exposed path first.`;
+      }
+      if (missionScopeValue) {
+        missionScopeValue.textContent = `${summary.agent_count || 0} agents`;
+      }
+      if (missionScopeDetail) {
+        missionScopeDetail.textContent = `Tracking ${summary.fact_count || 0} facts with ${summary.chain_count || 0} linked chain${summary.chain_count === 1 ? '' : 's'} in the current dashboard view.`;
+      }
     }
 
     function renderMitre(techniques) {
@@ -763,96 +2484,214 @@
       });
     }
 
+    function updateGraphOverview(graphData) {
+      const nodeCount = graphData?.nodes?.length || 0;
+      const edgeCount = graphData?.edges?.length || 0;
+      const pathCount = graphData?.attack_paths?.length || 0;
+      const meta = graphData?.meta || {};
+      graphNodeCount.textContent = nodeCount;
+      graphEdgeCount.textContent = edgeCount;
+      graphPathCount.textContent = pathCount;
+
+      const filterParts = [];
+      if (agentFilter.value) filterParts.push(`agent ${agentFilter.value}`);
+      if (graphAgentStateMode !== 'all') filterParts.push(`${graphAgentStateMode} agents`);
+      if (targetFilter.value) filterParts.push(`target ${targetFilter.value}`);
+      if (!filterParts.length && (meta.alive_agent_count || meta.dead_agent_count)) {
+        filterParts.push(`${meta.alive_agent_count || 0} alive / ${meta.dead_agent_count || 0} dead agents in CALDERA`);
+      }
+
+      if (!nodeCount) {
+        graphMeta.textContent = graphData?.error
+          ? 'The graph service returned an error, so the attack-path canvas could not be populated.'
+          : 'No graph data is visible for the current scope yet. Run a CALDERA operation or widen the filters to bring nodes back into view.';
+        graphStatusNote.textContent = graphData?.error
+          ? 'Check Neo4j connectivity and the graph writer if this stays empty.'
+          : 'Tip: clear agent and target filters to broaden the visible attack surface.';
+        return;
+      }
+
+      graphMeta.textContent = filterParts.length
+        ? `Focused graph view for ${filterParts.join(' and ')}. Use the network and side panels together to narrow triage quickly.`
+        : 'Live attack graph showing how CALDERA activity connects agents, observed facts, and next-chain evidence.';
+      graphStatusNote.textContent = pathCount
+        ? `Top ${pathCount} attack path${pathCount === 1 ? '' : 's'} available below. Follow the connected graph to trace executed steps and next-chain movement.`
+        : 'Tip: click an agent node to pivot the rest of the dashboard to that host.';
+    }
+
     function renderGraph(graphData) {
       const hasNodes = graphData && graphData.nodes && graphData.nodes.length > 0;
-      document.getElementById('empty').style.display = hasNodes ? 'none' : 'block';
+      document.getElementById('empty').style.display = 'none';
+      updateGraphOverview(graphData);
 
       if (cy) {
         cy.destroy();
         cy = null;
       }
 
+      document.getElementById('graph').innerHTML = '';
+
       if (!hasNodes) {
+        if (graphData && graphData.error) {
+          renderGraphMessage('Graph Unavailable', graphData.error, 'error');
+          return;
+        }
+        renderGraphMessage('No Graph Data Yet', 'No agent activity or facts matched the current filters. Run a CALDERA operation or clear the filters to populate the SOC graph.');
         return;
       }
 
-      cy = cytoscape({
-        container: document.getElementById('graph'),
-        elements: [...graphData.nodes, ...graphData.edges],
-        style: [
-          {
-            selector: 'node[type="agent"]',
-            style: {
-              'background-color': '#00ffcc',
-              'border-width': 2,
-              'border-color': '#0f8a74',
-              'label': 'data(label)',
-              'color': '#001',
-              'font-size': 10,
-              'text-wrap': 'wrap',
-              'text-max-width': 100,
-              'shape': 'round-rectangle',
-              'padding': '6px'
-            }
-          },
-          {
-            selector: 'node[type="agent"][status = "dead"]',
-            style: {
-              'background-color': '#ff3b3b',
-              'border-color': '#7f1212',
-              'color': '#fff',
-              'shape': 'diamond'
-            }
-          },
-          {
-            selector: 'node[type="fact"]',
-            style: {
-              'background-color': '#ff0055',
-              'label': 'data(label)',
-              'color': '#fff',
-              'font-size': 9,
-              'text-wrap': 'wrap',
-              'text-max-width': 130,
-              'padding': '5px'
-            }
-          },
-          {
-            selector: 'edge[relation="executed"]',
-            style: {
-              'line-color': '#43d9bd',
-              'target-arrow-color': '#43d9bd',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'width': 2
-            }
-          },
-          {
-            selector: 'edge[relation="next"]',
-            style: {
-              'line-color': '#f7b955',
-              'target-arrow-color': '#f7b955',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'line-style': 'dashed',
-              'width': 2
-            }
-          }
-        ],
-        layout: {
-          name: 'cose',
-          animate: true,
-          fit: true,
-          padding: 24
-        }
-      });
+      if (typeof window.cytoscape !== 'function') {
+        renderFallbackGraph(
+          graphData,
+          'Interactive graph rendering is unavailable in this browser session, so the dashboard is showing a built-in local fallback view instead.'
+        );
+        return;
+      }
 
-      cy.on('tap', 'node[type="agent"]', function(evt) {
-        const id = evt.target.id();
-        if (agentFilter.value !== id) {
-          agentFilter.value = id;
-          fetchAndRender();
-        }
-      });
+      try {
+        cy = cytoscape({
+          container: document.getElementById('graph'),
+          elements: [...graphData.nodes, ...graphData.edges],
+          minZoom: 0.38,
+          maxZoom: 2.4,
+          style: [
+            {
+              selector: 'node[type="agent"]',
+              style: {
+                'background-color': '#f6c453',
+                'border-width': 2.8,
+                'border-color': '#8e6b18',
+                'label': 'data(label)',
+                'color': '#11161d',
+                'font-size': 13,
+                'font-weight': 800,
+                'text-wrap': 'wrap',
+                'text-max-width': 110,
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'shape': 'diamond',
+                'width': 150,
+                'height': 102,
+                'padding': '10px',
+                'text-background-color': '#f6c453',
+                'text-background-opacity': 0.92,
+                'text-background-shape': 'roundrectangle',
+                'text-background-padding': 4
+              }
+            },
+            {
+              selector: 'node[type="agent"][status = "dead"]',
+              style: {
+                'background-color': '#ff6a6a',
+                'border-color': '#8b1e2d',
+                'color': '#13161c',
+                'text-background-color': '#ff6a6a'
+              }
+            },
+            {
+              selector: 'node[type="fact"]',
+              style: {
+                'background-color': '#4f7cff',
+                'border-width': 2.2,
+                'border-color': '#203f99',
+                'label': 'data(label)',
+                'color': '#fff',
+                'font-size': 11,
+                'font-weight': 700,
+                'text-wrap': 'wrap',
+                'text-max-width': 72,
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'shape': 'ellipse',
+                'width': 104,
+                'height': 104,
+                'padding': '8px',
+                'text-background-color': '#152349',
+                'text-background-opacity': 0.88,
+                'text-background-shape': 'roundrectangle',
+                'text-background-padding': 4
+              }
+            },
+            {
+              selector: 'edge[relation="executed"]',
+              style: {
+                'line-color': '#8fd8ff',
+                'target-arrow-color': '#8fd8ff',
+                'target-arrow-shape': 'triangle',
+                'curve-style': 'bezier',
+                'line-style': 'solid',
+                'width': 2.8,
+                'opacity': 0.9
+              }
+            },
+            {
+              selector: 'edge[relation="next"]',
+              style: {
+                'line-color': '#ff5a6f',
+                'target-arrow-color': '#ff5a6f',
+                'target-arrow-shape': 'triangle',
+                'curve-style': 'bezier',
+                'line-style': 'dashed',
+                'width': 2.4,
+                'opacity': 0.9
+              }
+            },
+            {
+              selector: 'node:selected',
+              style: {
+                'border-color': '#ffffff',
+                'border-width': 3.4
+              }
+            },
+            {
+              selector: 'edge:selected',
+              style: {
+                'width': 4,
+                'line-color': '#ffffff',
+                'target-arrow-color': '#ffffff'
+              }
+            }
+          ],
+          layout: {
+            name: 'cose',
+            animate: false,
+            fit: true,
+            padding: 72,
+            idealEdgeLength: 180,
+            edgeElasticity: 90,
+            nodeRepulsion: 420000,
+            gravity: 0.24,
+            nestingFactor: 0.8,
+            avoidOverlap: true,
+            nodeDimensionsIncludeLabels: true,
+            randomize: false,
+            componentSpacing: 140
+          }
+        });
+
+        cy.ready(() => {
+          window.requestAnimationFrame(() => {
+            if (!cy) return;
+            cy.resize();
+            cy.fit(cy.elements(), 60);
+            cy.center();
+          });
+        });
+
+        cy.on('tap', 'node[type="agent"]', function(evt) {
+          const id = evt.target.id();
+          if (agentFilter.value !== id) {
+            agentFilter.value = id;
+            fetchAndRender();
+          }
+        });
+      } catch (error) {
+        console.error('Interactive graph render failed, switching to fallback view.', error);
+        renderFallbackGraph(
+          graphData,
+          `The interactive graph renderer failed to initialize (${error.message || 'unknown error'}). The dashboard switched to a built-in fallback so the attack path view still appears.`
+        );
+      }
     }
 
     function renderDefense(recommendations) {
@@ -952,45 +2791,6 @@
       ensureSelectedFocus();
     }
 
-    function renderAdversaryModel(model) {
-      if (!model || !model.name) {
-        adversaryModel.textContent = 'WSL adversary model is not available yet.';
-        return;
-      }
-
-      const live = model.live_context || {};
-      const phases = (model.phases || [])
-        .map((phase) => `<li><strong>${escapeHtml(phase.name)}</strong>: ${escapeHtml(phase.goal)} (${escapeHtml((phase.techniques || []).join(', '))})</li>`)
-        .join('');
-      const steps = (model.operation_steps || [])
-        .map((item) => `<li>${escapeHtml(item)}</li>`)
-        .join('');
-      const defenses = (model.defense_priorities || [])
-        .map((item) => `<li>${escapeHtml(item)}</li>`)
-        .join('');
-      const tags = (live.highlighted_techniques || [])
-        .map((item) => `<span class="focus-tag">${escapeHtml(item)}</span>`)
-        .join('');
-
-      adversaryModel.innerHTML = `
-        <div class="focus-title">${escapeHtml(model.name)}</div>
-        <div class="focus-subtitle">${escapeHtml(model.summary || '')}</div>
-        <div><strong>Platform:</strong> ${escapeHtml(model.platform || 'WSL / Linux')}</div>
-        <div><strong>Adversary ID:</strong> ${escapeHtml(model.id || 'n/a')}</div>
-        <div><strong>CALDERA file:</strong> ${escapeHtml(model.caldera_file || 'n/a')}</div>
-        <div><strong>Operation mode:</strong> ${escapeHtml(model.operation_mode || 'Concurrent multi-agent operation')}</div>
-        <div><strong>Live scope:</strong> ${escapeHtml(`${live.active_agent_count || 0} agents | ${live.tracked_target_count || 0} targets | ${live.parallel_attack_paths || 0} attack paths`)}</div>
-        ${tags ? `<div class="focus-tags">${tags}</div>` : ''}
-        <div><strong>Active systems:</strong> ${escapeHtml((live.active_agents || []).join(', '))}</div>
-        <div><strong>Tracked targets:</strong> ${escapeHtml((live.active_targets || []).join(', '))}</div>
-        <ul class="compact-list">${phases}</ul>
-        <div class="focus-subtitle" style="margin-top:8px;">Operation setup</div>
-        <ul class="compact-list">${steps}</ul>
-        <div class="focus-subtitle" style="margin-top:8px;">Defense priorities</div>
-        <ul class="compact-list">${defenses}</ul>
-      `;
-    }
-
     async function fetchDefense() {
       const params = new URLSearchParams();
       if (agentFilter.value) params.set('agent', agentFilter.value);
@@ -1000,7 +2800,6 @@
       renderAgentProfiles(data.agent_profiles || []);
       renderScenarios(data.matched_scenarios || []);
       renderDefense(data.recommendations || []);
-      renderAdversaryModel(data.adversary_model || {});
       renderSelectedFocus();
     }
 
@@ -1010,9 +2809,13 @@
       renderBackendStatus(data || {});
     }
 
-    function appendChatLine(line) {
-      chatLog.textContent += `\n${line}`;
-      chatLog.scrollTop = chatLog.scrollHeight;
+    async function fetchLiveOverview() {
+      const res = await fetch('/api/live_overview', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Unable to load live overview data.');
+      }
+      renderLiveOverview(data || {});
     }
 
     function appendDefenseLine(line) {
@@ -1050,46 +2853,35 @@
       sendDefenseQuery(question);
     }
 
-    async function sendChat() {
-      const message = chatInput.value.trim();
-      if (!message) return;
-      appendChatLine(`You: ${message}`);
-      chatInput.value = '';
-
-      const payload = {
-        message,
-        agent: agentFilter.value || null,
-        target: targetFilter.value || null,
-        focus: selectedFocus,
-        agentProfile: selectedAgentProfile
-      };
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      appendChatLine(`Bot: ${data.reply || 'No response available.'}`);
-    }
-
     async function fetchAndRender() {
       const params = new URLSearchParams();
       if (agentFilter.value) params.set('agent', agentFilter.value);
+      if (graphAgentStateMode !== 'all') params.set('agent_state', graphAgentStateMode);
       if (targetFilter.value) params.set('target', targetFilter.value);
 
-      const res = await fetch(`/api/graph?${params.toString()}`, { credentials: 'same-origin' });
-      const data = await res.json();
+      setGraphLoading(true, 'Refreshing attack graph...');
+      try {
+        const res = await fetch(`/api/graph?${params.toString()}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Unable to load graph data from the dashboard backend.');
+        }
 
-      setOptions(agentFilter, data.filters?.agents || [], 'All Agents');
-      setOptions(targetFilter, data.filters?.targets || [], 'All Targets');
-      renderSummary(data.summary || {});
-      renderMitre(data.techniques || []);
-      renderAttackPaths(data.attack_paths || [], data.target_risk || {});
-      renderGraph(data);
-      await fetchBackendStatus();
-      await fetchDefense();
+        setGraphAgentStateMode(data.meta?.agent_state_filter || graphAgentStateMode);
+        setOptions(agentFilter, data.filters?.agents || [], 'All Agents');
+        setOptions(targetFilter, data.filters?.targets || [], 'All Targets');
+        renderSummary(data.summary || {});
+        renderMitre(data.techniques || []);
+        renderAttackPaths(data.attack_paths || [], data.target_risk || {});
+        renderGraph(data);
+      } catch (error) {
+        console.error('Graph refresh failed.', error);
+        renderGraphMessage('Graph Refresh Failed', error.message || 'Unable to load graph data from the dashboard backend.', 'error');
+      } finally {
+        setGraphLoading(false);
+      }
+
+      await Promise.allSettled([fetchBackendStatus(), fetchDefense(), fetchLiveOverview()]);
     }
 
     function startAutoRefresh() {
@@ -1104,25 +2896,37 @@
 
     function applyInitialState() {
       renderBackendStatus(initialBackendStatus || {});
+      setGraphAgentStateMode(graphAgentStateMode);
       setOptions(agentFilter, initialGraph.filters?.agents || [], 'All Agents');
       setOptions(targetFilter, initialGraph.filters?.targets || [], 'All Targets');
       renderSummary(initialGraph.summary || {});
       renderMitre(initialGraph.techniques || []);
       renderAttackPaths(initialGraph.attack_paths || [], initialGraph.target_risk || {});
       renderGraph(initialGraph);
+      renderLiveOverview(initialLiveOverview || {});
       renderSelectedFocus();
-      fetchDefense();
+      fetchDefense().catch((error) => {
+        console.error('Defense context failed to load on startup.', error);
+      });
       if (autoRefresh) startAutoRefresh();
     }
 
     async function loadTutorMode() {
-      const res = await fetch('/api/tutor_mode?module=soc', { credentials: 'same-origin' });
-      const data = await res.json();
-      if (data.mode) tutorMode.value = data.mode;
+      try {
+        const res = await fetch('/api/tutor_mode?module=soc', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.mode) tutorMode.value = data.mode;
+      } catch (error) {
+        console.error('Tutor mode could not be loaded.', error);
+      }
     }
 
     document.getElementById('refreshBtn').addEventListener('click', fetchAndRender);
     agentFilter.addEventListener('change', fetchAndRender);
+    graphAgentStateFilter.addEventListener('change', () => {
+      setGraphAgentStateMode(graphAgentStateFilter.value);
+      fetchAndRender();
+    });
     targetFilter.addEventListener('change', fetchAndRender);
     tutorMode.addEventListener('change', async () => {
       await fetch('/api/tutor_mode', {
@@ -1132,11 +2936,7 @@
         body: JSON.stringify({ module: 'soc', mode: tutorMode.value })
       });
     });
-    document.getElementById('chatSendBtn').addEventListener('click', sendChat);
     document.getElementById('defenseSendBtn').addEventListener('click', () => sendDefenseQuery());
-    chatInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendChat();
-    });
     defenseInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') sendDefenseQuery();
     });

@@ -1,5 +1,7 @@
 ﻿import json
+import json
 import time
+import psutil  # for system metrics
 
 import redis
 
@@ -71,7 +73,25 @@ def send_to_dlq(r, msg_id, data, reason):
     r.xadd(DLQ_STREAM, dlq_payload, maxlen=50000, approximate=True)
 
 
+def initialize_dependencies():
+    while True:
+        try:
+            r = connect_redis()
+            ensure_group(r)
+
+            writer = Neo4jEventWriter(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+            writer.ensure_constraints()
+            return r, writer
+        except Exception as exc:
+            print(f"[graph_writer] waiting for dependencies: {exc}")
+            time.sleep(5)
+
+
 def handle_message(r, writer, retry_counts, msg_id, fields):
+    global seen_event_ids  # Track for metrics
+    if 'seen_event_ids' not in globals():
+        seen_event_ids = set()
+    
     event = parse_data(fields)
     if not event:
         r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
@@ -92,6 +112,14 @@ def handle_message(r, writer, retry_counts, msg_id, fields):
         publish_update(r, event)
         r.xack(STREAM_NAME, CONSUMER_GROUP, msg_id)
         retry_counts.pop(msg_id, None)
+        
+        # Metrics: track unique events
+        eid = event.get("event_id")
+        if eid:
+            seen_event_ids.add(eid)
+            if len(seen_event_ids) > 100000:
+                seen_event_ids = set(list(seen_event_ids)[-50000:])
+        
         return True
     except Exception as exc:
         count = retry_counts.get(msg_id, 0) + 1
@@ -131,22 +159,46 @@ def reclaim_stale_pending(r):
     return reclaimed
 
 
-def process_loop():
-    r = connect_redis()
-    ensure_group(r)
+def log_metrics(r, start_time, processed_count, last_dlq_size):
+    """Log processing metrics every 30s"""
+    now = time.time()
+    if now - start_time < 30:
+        return start_time, processed_count
+    
+    stream_len = r.xlen(STREAM_NAME)
+    dlq_len = r.xlen(DLQ_STREAM)
+    pending_len = len(r.xpending(STREAM_NAME, CONSUMER_GROUP) or [])
+    seen_size = len(seen_event_ids) if 'seen_event_ids' in globals() else 0
+    
+    rate = (processed_count / 30) if processed_count else 0
+    delta_dlq = dlq_len - last_dlq_size
+    
+    print(f"[METRICS] backlog={stream_len} pending={pending_len} dlq={dlq_len} "
+          f"delta_dlq={delta_dlq:+} rate={rate:.1f}/s mem={psutil.Process().memory_info().rss/1024/1024:.0f}MB "
+          f"seen={seen_size}")
+    
+    return now, 0
 
-    writer = Neo4jEventWriter(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
-    writer.ensure_constraints()
+def process_loop():
+    r, writer = initialize_dependencies()
 
     retry_counts = {}
+    metrics_start = time.time()
+    processed_total = 0
+    last_dlq = 0
 
     while True:
         try:
+            # Log metrics
+            metrics_start, processed_total = log_metrics(r, metrics_start, processed_total, last_dlq)
+            last_dlq = r.xlen(DLQ_STREAM)
+            
             reclaimed = reclaim_stale_pending(r)
             if reclaimed:
                 print(f"[graph_writer] reclaimed {len(reclaimed)} pending messages")
                 for msg_id, fields in reclaimed:
-                    handle_message(r, writer, retry_counts, msg_id, fields)
+                    if handle_message(r, writer, retry_counts, msg_id, fields):
+                        processed_total += 1
 
             response = r.xreadgroup(
                 groupname=CONSUMER_GROUP,
@@ -161,10 +213,16 @@ def process_loop():
 
             for _, messages in response:
                 for msg_id, fields in messages:
-                    handle_message(r, writer, retry_counts, msg_id, fields)
+                    if handle_message(r, writer, retry_counts, msg_id, fields):
+                        processed_total += 1
 
         except Exception as exc:
             print(f"[graph_writer] loop error: {exc}")
+            try:
+                writer.close()
+            except Exception:
+                pass
+            r, writer = initialize_dependencies()
             time.sleep(2)
 
 
