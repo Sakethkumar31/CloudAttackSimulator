@@ -1,6 +1,6 @@
 # Cloud Attack Lab
 
-Technical README for running and understanding the working system. For the visual project walk-through with screenshots, see [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md).
+Technical README for running and understanding the working system. For the visual project walk-through with screenshots, see [README.md](README.md).
 
 ## Architecture
 
@@ -145,16 +145,16 @@ Access: `http://127.0.0.1:5000/login`
 
 ## Documentation Views
 
-- Visual project representation: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
-- Working technical guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
-- Screenshot context details: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
+- Visual project representation: [README.md](README.md)
+- Working technical guide: [README_WORKING.md](README_WORKING.md)
+- Screenshot context details: [docs/SCREENSHOT_CONTEXTS.md](docs/SCREENSHOT_CONTEXTS.md)
 
 ## Reference Notes
 
-- Demo/reviewer evidence summary: [docs/GITHUB_REFERENCE.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/GITHUB_REFERENCE.md)
-- Screenshot-by-screenshot context pack: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
-- Friend handoff document: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
-- Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md)
+- Demo/reviewer evidence summary: [docs/GITHUB_REFERENCE.md](docs/GITHUB_REFERENCE.md)
+- Screenshot-by-screenshot context pack: [docs/SCREENSHOT_CONTEXTS.md](docs/SCREENSHOT_CONTEXTS.md)
+- Friend handoff document: [docs/FRIEND_PROJECT_HANDOFF.md](docs/FRIEND_PROJECT_HANDOFF.md)
+- Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](docs/RESEARCH_PAPER_BRIEF.md)
 
 ## Media And Copyright
 

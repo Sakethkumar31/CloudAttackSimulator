@@ -13,7 +13,7 @@ This repo now includes a pull-only deployment path for machines that should run 
 
 1. Log in to Docker Hub:
    `docker login`
-2. Copy [infra/.env.dockerhub.example](/c:/Users/91895/Desktop/projects/cloud-attack-lab/infra/.env.dockerhub.example) to `infra/.env.dockerhub`
+2. Copy [infra/.env.dockerhub.example](../infra/.env.dockerhub.example) to `infra/.env.dockerhub`
 3. Fill in:
    - `DOCKERHUB_NAMESPACE`
    - `NEO4J_PASSWORD`
@@ -51,4 +51,4 @@ The dashboard will be available on `http://localhost:5000` and CALDERA on `http:
 ## Notes
 
 - The Hub compose file uses official `neo4j` and `redis` images and your published app images.
-- If you skip `-PushCaldera`, replace the `caldera` service image in [docker-compose.hub.yml](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docker-compose.hub.yml) with another reachable CALDERA image or service.
+- If you skip `-PushCaldera`, replace the `caldera` service image in [docker-compose.hub.yml](../docker-compose.hub.yml) with another reachable CALDERA image or service.

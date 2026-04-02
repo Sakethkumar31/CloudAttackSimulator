@@ -3,9 +3,9 @@
   <h1>Cloud Attack Path Simulator</h1>
   <p><strong>A presentation-style cyber defense showcase for attack emulation, graph intelligence, analyst triage, and learner training.</strong></p>
   <p>
-    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md">Working Guide</a> |
-    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md">Friend Handoff</a> |
-    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md">Research Brief</a>
+    <a href="README_WORKING.md">Working Guide</a> |
+    <a href="docs/FRIEND_PROJECT_HANDOFF.md">Friend Handoff</a> |
+    <a href="docs/RESEARCH_PAPER_BRIEF.md">Research Brief</a>
   </p>
 </div>
 
@@ -151,11 +151,11 @@ Cloud Attack Path Simulator is designed as a full project presentation, not just
 
 ## Quick Access
 
-- Visual project landing page: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
-- Technical setup and runtime guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
-- Screenshot context notes: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
-- Friend handoff packet: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
-- Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md)
+- Visual project landing page: [README.md](README.md)
+- Technical setup and runtime guide: [README_WORKING.md](README_WORKING.md)
+- Screenshot context notes: [docs/SCREENSHOT_CONTEXTS.md](docs/SCREENSHOT_CONTEXTS.md)
+- Friend handoff packet: [docs/FRIEND_PROJECT_HANDOFF.md](docs/FRIEND_PROJECT_HANDOFF.md)
+- Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](docs/RESEARCH_PAPER_BRIEF.md)
 
 ## Media And Copyright
 
