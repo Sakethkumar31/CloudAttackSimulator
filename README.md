@@ -1,227 +1,75 @@
-# Cloud Attack Lab
+# Cloud Attack Path Simulator
 
-Technical README for running and understanding the working system. For the visual project walk-through with screenshots, see [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md).
+Visual project representation for reviewers, faculty, and first-time GitHub visitors. For setup and runtime details, see [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md).
 
-## Architecture
+## Project Summary
 
-```
-CALDERA (localhost:8888) -> sync_worker -> Redis -> graph_writer -> Neo4j -> dashboard_web
-```
+Cloud Attack Path Simulator is a SOC-focused cyber range platform that converts MITRE CALDERA attack activity into an attack graph, risk view, and guided defensive learning workflow. The project combines attack emulation, event processing, graph intelligence, and training modules in one platform.
 
-- **sync_worker**: Polls CALDERA API every 5s, publishes events to Redis stream
-- **graph_writer**: Consumes Redis stream, builds attack graph in Neo4j
-- **dashboard_web**: Flask app with Cytoscape visualization, risk scoring, MITRE mapping, AI tutor
+## End-To-End Representation
 
-## Repo Layout
+### 1. Architecture Overview
 
-```
-cloud-attack-lab/
-  dashboard_web/       # Flask dashboard (frontend)
-  services/            # Backend workers
-    graph_writer/      # Redis -> Neo4j graph writer
-    sync_worker/       # CALDERA API -> Redis sync service
-  infra/               # Docker Compose configuration
-    docker-compose.phase2.yml   # Main compose file
-    .env.phase2.example         # Environment template
-    caldera.local.yml.example   # CALDERA config template
-  caldera/             # MITRE CALDERA framework (submodule)
-```
+![Architecture Overview](docs/screenshots/phase-0-architecture-overview.png)
 
-## Quick Start (Full Stack with Docker)
+This diagram presents the full platform story. CALDERA generates attack-emulation activity, `sync_worker` normalizes and forwards events, Redis acts as the event buffer, `graph_writer` builds the attack graph in Neo4j, and the final application layer exposes the SOC dashboard, Maze, CTF, and risk-analysis surfaces.
 
-### Prerequisites
+### 2. Data Pipeline
 
-- Docker Desktop running (with WSL2 backend on Windows)
-- Ubuntu-22.04 WSL distribution with Docker Engine installed
-- CALDERA running on `http://localhost:8888` (or in Docker)
+![Data Pipeline](docs/screenshots/phase-0-data-pipeline.png)
 
-### 1) Setup environment files
+This view shows the implementation pipeline more directly. It explains how raw CALDERA operations move through a poller and stream-processing path before becoming graph-backed data in Neo4j and analyst-facing views in the Flask dashboard.
 
-```powershell
-# From repo root (PowerShell)
-Copy-Item infra\.env.phase2.example infra\.env.phase2
-Copy-Item infra\caldera.local.yml.example infra\caldera.local.yml
-```
+### 3. CALDERA Source Environment
 
-Edit `infra\.env.phase2` and set:
-- `CALDERA_API_KEY` - from your CALDERA instance
-- `NEO4J_PASSWORD` - your Neo4j password
-- `DASHBOARD_PASS` - dashboard login password
+![CALDERA Source](docs/screenshots/phase-1-caldera-source.png)
 
-### 2) Start the stack
+This screenshot shows the upstream attack-emulation environment used to generate the activity seen in the project. It demonstrates the operational source of agents, commands, and adversary-execution context that later appears in the SOC dashboard.
 
-**Windows (using WSL):**
-```powershell
-.\run_lab.bat
-```
+### 4. SOC Dashboard Overview
 
-**Manual (from WSL):**
-```bash
-cd /home/saketh/cloud-attack-lab
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml up -d
-```
+![SOC Dashboard Overview](docs/screenshots/phase-2-soc-dashboard-overview.jpeg)
 
-### 3) Access services
+This is the main analyst-facing workspace. It combines current risk, visible scope, sync health, live operations, and geospatial context in a single screen so the user can move from system status to investigation without leaving the dashboard.
 
-- **Dashboard**: http://localhost:5000/login
-- **CALDERA**: http://localhost:8888
-- **Neo4j Browser**: http://localhost:7474
+### 5. Attack Graph
 
-### 4) Stop the stack
+![Attack Graph](docs/screenshots/phase-3-attack-graph.jpeg)
 
-```powershell
-.\run_lab.bat stop
-# Or manually:
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml down
-```
+This image shows the core graph model in action. CALDERA execution has been transformed into connected graph entities, where an agent node is linked to an observed fact, allowing analysts to inspect path progression instead of isolated events.
 
-### 5) Clean restart (remove all containers and images)
+### 6. Attack Focus And Triage
 
-```bash
-# Run from WSL
-cd /home/saketh/cloud-attack-lab
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml down --rmi all --volumes --remove-orphans
-docker compose --env-file infra/.env.phase2 -f infra/docker-compose.phase2.yml up -d --build
-```
+![Attack Focus](docs/screenshots/phase-3-attack-focus.jpeg)
 
----
+This panel highlights the ranked attack path and the currently selected triage focus. It adds analyst guidance on scope, containment, and evidence preservation, showing that the platform is built for response reasoning, not just graph rendering.
 
-## Dashboard Only (No Docker)
+### 7. Interactive Maze Defender Mode
 
-### 1) Create Python environment
+![Maze Defender](docs/screenshots/phase-5-maze-defender.jpeg)
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-cd dashboard_web
-pip install -r requirements.txt
-```
+The Maze module converts attack-path understanding into guided defensive action. Users work through mitigation steps such as recon, log review, isolation, blocking, and verification so they can practice the correct order of response.
 
-### 2) Set environment variables
+### 8. CTF Learner Mode
 
-```powershell
-$env:NEO4J_URI="neo4j://localhost:7687"
-$env:NEO4J_USER="neo4j"
-$env:NEO4J_PASSWORD="your_password"
-$env:DASHBOARD_USER="socadmin"
-$env:DASHBOARD_PASS="your_password"
-```
+![CTF Learner Mode](docs/screenshots/phase-5-ctf-level1.jpeg)
 
-### 3) Run dashboard
+The CTF mode extends the project into student-friendly practice. It presents security questions, hinting, chatbot guidance, and tutor-depth control so learners can build reasoning skills alongside the analyst dashboard.
 
-```powershell
-python app.py
-# Or use the launcher:
-.\run_dashboard_web.bat
-```
+## What This Project Represents
 
-Access: http://127.0.0.1:5000/login
+- An attack-emulation to SOC-visibility pipeline
+- A graph-based approach to attack-path reconstruction
+- A training platform that joins analyst workflows with learning modules
+- A reviewer-friendly demonstration system for cyber defense, MITRE ATT&CK mapping, and blue-team education
 
----
+## Related Docs
 
-## Running CALDERA on Localhost (Recommended for WSL)
-
-The compose file is configured to connect to CALDERA running on your host machine at `http://localhost:8888`.
-
-### Start CALDERA manually (in WSL):
-
-```bash
-cd /home/saketh/cloud-attack-lab/caldera
-python3 caldera.py --config /path/to/caldera.local.yml
-```
-
-Or run CALDERA in Docker by uncommenting the `caldera` service in `docker-compose.phase2.yml`.
-
----
-
-## Environment Variables Reference
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CALDERA_URL` | CALDERA API endpoint | `http://host.docker.internal:8888` |
-| `CALDERA_API_KEY` | CALDERA API key | (required) |
-| `NEO4J_URI` | Neo4j connection URL | `neo4j://neo4j:7687` |
-| `NEO4J_USER` | Neo4j username | `neo4j` |
-| `NEO4J_PASSWORD` | Neo4j password | (required) |
-| `DASHBOARD_USER` | Dashboard login username | `socadmin` |
-| `DASHBOARD_PASS` | Dashboard login password | (required) |
-| `GEMINI_API_KEY` | Gemini API key (for AI tutor) | (optional) |
-| `GEMINI_MODEL` | Gemini model name | `gemini-2.0-flash` |
-
----
-
-## Features
-
-- **Real-time attack graph visualization** using Cytoscape.js
-- **Risk scoring** (LOW -> CRITICAL, 0-100 scale)
-- **MITRE ATT&CK technique mapping**
-- **Attack path reconstruction**
-- **AI tutor** (Google Gemini integration)
-- **CTF learning modes** (beginner/intermediate/expert)
-- **SOC learning bot** (chat interface)
-
-## Documentation Views
-
-- Working / technical guide: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
-- Visual project representation: [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md)
-- Screenshot context details: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
-
-## Simulation Phases
-
-The main adversary model in this repo follows a safe multi-stage flow that is useful for demos, reports, and screenshots:
-
-1. **WSL execution foothold**
-   Command execution from a WSL/Linux operator context becomes visible in the dashboard graph.
-2. **Credential or session reuse**
-   Valid-account style behavior is simulated to show identity-driven attack expansion.
-3. **Multi-system fan-out**
-   Lateral movement style activity increases chain depth, target spread, and overall risk.
-4. **Collection and controlled egress**
-   Safe exfiltration-style indicators show how outbound activity appears in the attack path.
-
-Research/report handoff docs:
-
-- Full friend-ready packet: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
+- Visual project representation: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
+- Technical working guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
+- Screenshot context notes: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
+- Friend handoff document: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
 - Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md)
-
----
-
-## GitHub Workflow
-
-```powershell
-git add .
-git commit -m "your change message"
-git push origin main
-```
-
----
-
-## Docker Hub Workflow
-
-Use the prebuilt-image path when you want to run the project on another machine without rebuilding from source.
-
-1. Copy `infra/.env.dockerhub.example` to `infra/.env.dockerhub`
-2. Fill in your Docker Hub namespace and runtime secrets
-3. Log in with `docker login`
-4. Push images:
-
-```powershell
-.\scripts\push-dockerhub.ps1 -Namespace your-dockerhub-username -PushCaldera
-```
-
-5. Pull and run anywhere:
-
-```powershell
-docker compose --env-file infra/.env.dockerhub -f docker-compose.hub.yml pull
-docker compose --env-file infra/.env.dockerhub -f docker-compose.hub.yml up -d
-```
-
-More detail: [docs/DOCKER_HUB_DEPLOYMENT.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/DOCKER_HUB_DEPLOYMENT.md)
-
-## Reference Notes
-
-- Demo/reviewer evidence summary: [docs/GITHUB_REFERENCE.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/GITHUB_REFERENCE.md)
-- Screenshot-by-screenshot context pack: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
 
 ## Media And Copyright
 

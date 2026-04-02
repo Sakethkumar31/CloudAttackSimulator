@@ -13,8 +13,8 @@ Current screenshot set in this folder:
 
 Primary documentation usage:
 
-- technical/runtime guide: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
-- visual project representation: [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md)
+- visual project representation: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
+- technical/runtime guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
 
 Embed format:
 
