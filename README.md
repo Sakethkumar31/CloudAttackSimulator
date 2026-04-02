@@ -1,6 +1,6 @@
 # Cloud Attack Lab
 
-Security Operations Center (SOC) dashboard that visualizes attack paths from CALDERA (MITRE adversarial emulation framework) in real-time.
+Technical README for running and understanding the working system. For the visual project walk-through with screenshots, see [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md).
 
 ## Architecture
 
@@ -160,6 +160,12 @@ Or run CALDERA in Docker by uncommenting the `caldera` service in `docker-compos
 - **CTF learning modes** (beginner/intermediate/expert)
 - **SOC learning bot** (chat interface)
 
+## Documentation Views
+
+- Working / technical guide: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
+- Visual project representation: [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md)
+- Screenshot context details: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
+
 ## Simulation Phases
 
 The main adversary model in this repo follows a safe multi-stage flow that is useful for demos, reports, and screenshots:
@@ -216,31 +222,6 @@ More detail: [docs/DOCKER_HUB_DEPLOYMENT.md](/c:/Users/91895/Desktop/projects/cl
 
 - Demo/reviewer evidence summary: [docs/GITHUB_REFERENCE.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/GITHUB_REFERENCE.md)
 - Screenshot-by-screenshot context pack: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
-
-## Screenshot Plan
-
-For a public GitHub visitor, the screenshots should appear in this story order:
-
-1. **Architecture overview**
-   Explain the full platform: CALDERA -> `sync_worker` -> Redis -> `graph_writer` -> Neo4j -> Dashboard.
-2. **Data pipeline**
-   Show the implementation-focused service flow that turns operations into a graph-backed SOC view.
-3. **CALDERA source**
-   Show the upstream attack-emulation platform that provides agents, operations, and executed links.
-4. **SOC dashboard overview**
-   Show the analyst landing page with risk, sync health, live operations, and geospatial context.
-5. **Attack graph**
-   Show the agent-to-fact graph that proves the execution data becomes a visual attack path.
-6. **Attack focus**
-   Show the path-ranking and triage panel that adds guidance beyond simple graph rendering.
-7. **Geospatial map**
-   Show mapped agent/attacker context and analyst-console location awareness.
-8. **Maze defender simulation**
-   Show the response-training mode that converts attack-path ideas into guided mitigation steps.
-9. **CTF learner mode**
-   Show the question-and-tutor flow used for student practice and onboarding.
-
-Suggested file names and full captions are documented in [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md).
 
 ## Media And Copyright
 

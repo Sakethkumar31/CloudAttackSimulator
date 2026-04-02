@@ -60,11 +60,11 @@ Suggested caption:
 
 Implementation pipeline for the platform. CALDERA operations are polled by `sync_worker`, published into Redis Streams, consumed by `graph_writer`, stored as an attack graph in Neo4j, and served to the Flask dashboard for graph, MITRE, Maze, CTF, and tutor features.
 
-### 3. `docs/screenshots/phase-1-caldera-login.png`
+### 3. `docs/screenshots/phase-1-caldera-source.png`
 
 Use image:
 
-- the CALDERA login screen
+- the CALDERA collage / source-environment screenshot showing terminal activity and CALDERA UI
 
 What it shows:
 
@@ -80,7 +80,7 @@ CALDERA serves as the attack-emulation engine for the project. Operations and ag
 
 Note:
 
-- if you have a better CALDERA screenshot that shows agents or executed links, prefer that over the login screen because it is more informative for reviewers
+- this screenshot is stronger than a plain login screen because it shows both the CALDERA interface and the activity source context
 
 ### 4. `docs/screenshots/phase-2-soc-dashboard-overview.png`
 
@@ -217,9 +217,8 @@ Recommended public GitHub order:
 4. SOC dashboard overview
 5. attack graph
 6. attack focus
-7. geospatial map
-8. maze
-9. CTF
+7. maze
+8. CTF
 
 This order tells a clear story:
 

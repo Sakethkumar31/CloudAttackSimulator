@@ -1,25 +1,29 @@
 # Screenshot Asset Guide
 
-Add project screenshots in this folder using names close to the phase they represent.
+Current screenshot set in this folder:
 
-Recommended names:
+- `phase-0-architecture-overview.png`
+- `phase-0-data-pipeline.png`
+- `phase-1-caldera-source.png`
+- `phase-2-soc-dashboard-overview.jpeg`
+- `phase-3-attack-graph.jpeg`
+- `phase-3-attack-focus.jpeg`
+- `phase-5-maze-defender.jpeg`
+- `phase-5-ctf-level1.jpeg`
 
-- `phase-1-caldera-agent.png`
-- `phase-2-operation-chain.png`
-- `phase-3-soc-dashboard.png`
-- `phase-4-geo-map.png`
-- `phase-5-maze.png`
-- `phase-5-ctf.png`
+Primary documentation usage:
 
-When the images are available, the main README can embed them with:
+- technical/runtime guide: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
+- visual project representation: [README_PRESENTATION.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_PRESENTATION.md)
+
+Embed format:
 
 ```md
-![Phase 1 - CALDERA Agent](docs/screenshots/phase-1-caldera-agent.png)
+![Architecture Overview](docs/screenshots/phase-0-architecture-overview.png)
 ```
 
-Each screenshot should be paired with:
+Each screenshot should still be paired with:
 
-- a short title,
-- which project phase it represents,
-- what the viewer should notice,
-- and why that phase matters in the overall workflow.
+- a short title
+- what the viewer should notice
+- why it matters in the workflow
