@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Attack Path Simulator</title>
+  <desc id="desc">Presentation banner for the Cloud Attack Path Simulator project.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07111d"/>
+      <stop offset="55%" stop-color="#0b1b2d"/>
+      <stop offset="100%" stop-color="#081019"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00e1c7"/>
+      <stop offset="100%" stop-color="#57a9ff"/>
+    </linearGradient>
+    <linearGradient id="soft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#13253b"/>
+      <stop offset="100%" stop-color="#0c1826"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#57a9ff"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="420" rx="28" fill="url(#bg)"/>
+  <g opacity="0.18">
+    <path d="M0 70 H1280" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M0 140 H1280" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M0 210 H1280" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M0 280 H1280" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M0 350 H1280" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M160 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M320 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M480 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M640 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M800 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M960 0 V420" stroke="#69d8ff" stroke-width="1"/>
+    <path d="M1120 0 V420" stroke="#69d8ff" stroke-width="1"/>
+  </g>
+
+  <circle cx="104" cy="98" r="42" fill="#112537" stroke="#1dd8c0" stroke-width="2"/>
+  <text x="104" y="106" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#f3fbff">C</text>
+
+  <text x="170" y="96" font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="700" fill="#f4fbff">
+    Cloud Attack Path Simulator
+  </text>
+  <text x="170" y="138" font-family="Segoe UI, Arial, sans-serif" font-size="19" fill="#a9c6df">
+    Attack Emulation | Event Processing | Graph Intelligence | Analyst Training
+  </text>
+  <rect x="170" y="160" width="540" height="4" rx="2" fill="url(#accent)"/>
+
+  <text x="84" y="222" font-family="Consolas, monospace" font-size="16" fill="#ffc978">PIPELINE</text>
+  <g transform="translate(78 244)">
+    <rect x="0" y="0" width="184" height="74" rx="16" fill="url(#soft)" stroke="#21415f"/>
+    <text x="92" y="28" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#f4fbff">CALDERA</text>
+    <text x="92" y="50" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Attack emulation source</text>
+  </g>
+  <g transform="translate(302 244)">
+    <rect x="0" y="0" width="184" height="74" rx="16" fill="url(#soft)" stroke="#21415f"/>
+    <text x="92" y="28" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#f4fbff">sync_worker + Redis</text>
+    <text x="92" y="50" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Normalize and stream events</text>
+  </g>
+  <g transform="translate(526 244)">
+    <rect x="0" y="0" width="184" height="74" rx="16" fill="url(#soft)" stroke="#21415f"/>
+    <text x="92" y="28" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#f4fbff">graph_writer + Neo4j</text>
+    <text x="92" y="50" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Build attack relationships</text>
+  </g>
+
+  <path d="M262 281 H302" stroke="#57a9ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M486 281 H526" stroke="#57a9ff" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g transform="translate(828 74)">
+    <rect x="0" y="0" width="376" height="268" rx="24" fill="#0f1a29" stroke="#21415f"/>
+    <text x="28" y="42" font-family="Consolas, monospace" font-size="16" fill="#00e1c7">PLATFORM SURFACES</text>
+    <rect x="28" y="68" width="148" height="74" rx="14" fill="#152538" stroke="#2e567f"/>
+    <text x="102" y="100" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#f4fbff">SOC Dashboard</text>
+    <text x="102" y="120" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Risk, graph, triage</text>
+    <rect x="198" y="68" width="148" height="74" rx="14" fill="#152538" stroke="#2e567f"/>
+    <text x="272" y="100" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#f4fbff">Maze</text>
+    <text x="272" y="120" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Defender simulation</text>
+    <rect x="28" y="164" width="148" height="74" rx="14" fill="#152538" stroke="#2e567f"/>
+    <text x="102" y="196" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#f4fbff">CTF</text>
+    <text x="102" y="216" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Learner practice</text>
+    <rect x="198" y="164" width="148" height="74" rx="14" fill="#152538" stroke="#2e567f"/>
+    <text x="272" y="196" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#f4fbff">AI Guidance</text>
+    <text x="272" y="216" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9ec0dd">Tutor and advisor</text>
+  </g>
+</svg>

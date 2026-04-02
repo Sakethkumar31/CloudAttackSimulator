@@ -1,74 +1,160 @@
-# Cloud Attack Path Simulator
+<div align="center">
+  <img src="docs/assets/readme-hero.svg" alt="Cloud Attack Path Simulator banner" width="100%">
+  <h1>Cloud Attack Path Simulator</h1>
+  <p><strong>A presentation-style cyber defense showcase for attack emulation, graph intelligence, analyst triage, and learner training.</strong></p>
+  <p>
+    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md">Working Guide</a> |
+    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md">Friend Handoff</a> |
+    <a href="/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md">Research Brief</a>
+  </p>
+</div>
 
-Visual project representation for reviewers, faculty, and first-time GitHub visitors. For setup and runtime details, see [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md).
+## Project Vision
 
-## Project Summary
+Cloud Attack Path Simulator is designed as a full project presentation, not just a code repository. The platform starts with MITRE CALDERA attack emulation, streams events through Redis-backed processing, builds relationships in Neo4j, and turns the result into a SOC dashboard with attack graphs, risk views, triage guidance, Maze missions, and CTF learning.
 
-Cloud Attack Path Simulator is a SOC-focused cyber range platform that converts MITRE CALDERA attack activity into an attack graph, risk view, and guided defensive learning workflow. The project combines attack emulation, event processing, graph intelligence, and training modules in one platform.
+## Why This Project Matters
 
-## End-To-End Representation
+<table>
+  <tr>
+    <td width="33%">
+      <h3>Problem</h3>
+      Security demos often show commands or alerts, but not the connected attack path.
+    </td>
+    <td width="33%">
+      <h3>Solution</h3>
+      This project reconstructs attacker behavior as a graph-backed SOC workflow with MITRE context.
+    </td>
+    <td width="33%">
+      <h3>Outcome</h3>
+      Reviewers can understand how activity is generated, processed, visualized, and taught in one platform.
+    </td>
+  </tr>
+</table>
 
-### 1. Architecture Overview
+## Presentation Flow
 
-![Architecture Overview](docs/screenshots/phase-0-architecture-overview.png)
+<table>
+  <tr>
+    <td width="25%"><strong>1. Attack Emulation</strong><br>CALDERA produces adversary activity and agent context.</td>
+    <td width="25%"><strong>2. Event Processing</strong><br><code>sync_worker</code> and Redis normalize and buffer telemetry.</td>
+    <td width="25%"><strong>3. Graph Intelligence</strong><br><code>graph_writer</code> stores relationships in Neo4j.</td>
+    <td width="25%"><strong>4. User Experience</strong><br>SOC, Maze, CTF, and AI guidance present the result.</td>
+  </tr>
+</table>
 
-This diagram presents the full platform story. CALDERA generates attack-emulation activity, `sync_worker` normalizes and forwards events, Redis acts as the event buffer, `graph_writer` builds the attack graph in Neo4j, and the final application layer exposes the SOC dashboard, Maze, CTF, and risk-analysis surfaces.
+## Architecture Story
 
-### 2. Data Pipeline
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/phase-0-architecture-overview.png" alt="Architecture overview" width="100%">
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/phase-0-data-pipeline.png" alt="Data pipeline" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>Architecture Overview</strong><br>
+      The full platform view: CALDERA generates activity, Redis carries events, Neo4j stores the graph, and the application layer exposes SOC, Maze, CTF, and risk-assessment experiences.
+    </td>
+    <td>
+      <strong>Implementation Pipeline</strong><br>
+      The actual service flow: CALDERA -> <code>sync_worker</code> -> Redis Stream -> <code>graph_writer</code> -> Neo4j <-> Flask dashboard.
+    </td>
+  </tr>
+</table>
 
-![Data Pipeline](docs/screenshots/phase-0-data-pipeline.png)
+## Source To Visibility
 
-This view shows the implementation pipeline more directly. It explains how raw CALDERA operations move through a poller and stream-processing path before becoming graph-backed data in Neo4j and analyst-facing views in the Flask dashboard.
+<table>
+  <tr>
+    <td width="45%">
+      <img src="docs/screenshots/phase-1-caldera-source.png" alt="CALDERA source environment" width="100%">
+    </td>
+    <td width="55%">
+      <h3>CALDERA Source Environment</h3>
+      This screenshot anchors the project in a real attack-emulation workflow. It shows the environment from which agents, commands, and operation activity originate before they are transformed into graph-backed SOC intelligence.
+      <br><br>
+      <strong>Key message:</strong> the project is not based on fake static screenshots alone; it is fed by a real upstream attack-simulation source.
+    </td>
+  </tr>
+</table>
 
-### 3. CALDERA Source Environment
+## Analyst Experience
 
-![CALDERA Source](docs/screenshots/phase-1-caldera-source.png)
+<table>
+  <tr>
+    <td width="100%">
+      <img src="docs/screenshots/phase-2-soc-dashboard-overview.jpeg" alt="SOC dashboard overview" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>SOC Dashboard Overview</strong><br>
+      This is the main analyst-facing workspace. It combines current risk, sync health, visible scope, operation feed, and map context so a user can move from platform status to investigation within one interface.
+    </td>
+  </tr>
+</table>
 
-This screenshot shows the upstream attack-emulation environment used to generate the activity seen in the project. It demonstrates the operational source of agents, commands, and adversary-execution context that later appears in the SOC dashboard.
+<table>
+  <tr>
+    <td width="68%">
+      <img src="docs/screenshots/phase-3-attack-graph.jpeg" alt="Attack graph" width="100%">
+    </td>
+    <td width="32%">
+      <img src="docs/screenshots/phase-3-attack-focus.jpeg" alt="Attack focus and triage" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>Attack Graph</strong><br>
+      CALDERA execution is converted into connected graph entities, allowing analysts to inspect how an agent and an observed fact form an attack path instead of reading disconnected alerts.
+    </td>
+    <td>
+      <strong>Attack Focus</strong><br>
+      Ranked path summaries and guidance help the analyst prioritize containment, evidence preservation, and triage around the most relevant path.
+    </td>
+  </tr>
+</table>
 
-### 4. SOC Dashboard Overview
+## Training And Learning Extensions
 
-![SOC Dashboard Overview](docs/screenshots/phase-2-soc-dashboard-overview.jpeg)
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/phase-5-maze-defender.jpeg" alt="Maze defender simulation" width="100%">
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/phase-5-ctf-level1.jpeg" alt="CTF learner mode" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>Maze Defender Mode</strong><br>
+      Attack-path knowledge is turned into a guided mitigation mission where the user practices recon, review, isolation, blocking, and verification in the correct response order.
+    </td>
+    <td>
+      <strong>CTF Learner Mode</strong><br>
+      The platform also supports student practice through challenge-based learning, hints, tutor depth, and chatbot-assisted explanation.
+    </td>
+  </tr>
+</table>
 
-This is the main analyst-facing workspace. It combines current risk, visible scope, sync health, live operations, and geospatial context in a single screen so the user can move from system status to investigation without leaving the dashboard.
+## What This Repository Represents
 
-### 5. Attack Graph
-
-![Attack Graph](docs/screenshots/phase-3-attack-graph.jpeg)
-
-This image shows the core graph model in action. CALDERA execution has been transformed into connected graph entities, where an agent node is linked to an observed fact, allowing analysts to inspect path progression instead of isolated events.
-
-### 6. Attack Focus And Triage
-
-![Attack Focus](docs/screenshots/phase-3-attack-focus.jpeg)
-
-This panel highlights the ranked attack path and the currently selected triage focus. It adds analyst guidance on scope, containment, and evidence preservation, showing that the platform is built for response reasoning, not just graph rendering.
-
-### 7. Interactive Maze Defender Mode
-
-![Maze Defender](docs/screenshots/phase-5-maze-defender.jpeg)
-
-The Maze module converts attack-path understanding into guided defensive action. Users work through mitigation steps such as recon, log review, isolation, blocking, and verification so they can practice the correct order of response.
-
-### 8. CTF Learner Mode
-
-![CTF Learner Mode](docs/screenshots/phase-5-ctf-level1.jpeg)
-
-The CTF mode extends the project into student-friendly practice. It presents security questions, hinting, chatbot guidance, and tutor-depth control so learners can build reasoning skills alongside the analyst dashboard.
-
-## What This Project Represents
-
-- An attack-emulation to SOC-visibility pipeline
+- A complete attack-emulation to SOC-visibility pipeline
 - A graph-based approach to attack-path reconstruction
-- A training platform that joins analyst workflows with learning modules
-- A reviewer-friendly demonstration system for cyber defense, MITRE ATT&CK mapping, and blue-team education
+- A project presentation suitable for GitHub, demos, and faculty review
+- A combined analyst-and-learner platform instead of a single-view dashboard
 
-## Related Docs
+## Quick Access
 
-- Visual project representation: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
-- Technical working guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
+- Visual project landing page: [README.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README.md)
+- Technical setup and runtime guide: [README_WORKING.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/README_WORKING.md)
 - Screenshot context notes: [docs/SCREENSHOT_CONTEXTS.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/SCREENSHOT_CONTEXTS.md)
-- Friend handoff document: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
+- Friend handoff packet: [docs/FRIEND_PROJECT_HANDOFF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/FRIEND_PROJECT_HANDOFF.md)
 - Research paper brief: [docs/RESEARCH_PAPER_BRIEF.md](/c:/Users/91895/Desktop/projects/cloud-attack-lab/docs/RESEARCH_PAPER_BRIEF.md)
 
 ## Media And Copyright
