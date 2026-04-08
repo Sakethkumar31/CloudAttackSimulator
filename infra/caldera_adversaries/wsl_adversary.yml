@@ -1,12 +1,14 @@
 name: WSL Adversary
-description: Lab-safe WSL adversary profile for targeting multiple systems in a single CALDERA operation. This profile maps 8 attack abilities to simulate WSL-based execution, discovery, credential/session reuse, lateral movement, collection, and controlled exfiltration-style signals across selected targets.
+description: Lab-safe WSL adversary profile for CALDERA. This profile maps 10 Linux discovery abilities such as whoami, hostname, uname, id, pwd, ls, ps, ss, ip addr, and /etc/passwd review to MITRE ATT&CK discovery techniques without adding any dedicated dashboard model.
 atomic_ordering:
-- 5951d0ba-ac4d-4873-8517-5ad21398ffed
-- d88649f1-4fe6-4133-aa2e-00533c7d97fb
-- 07b5d669-076f-4a12-a0e8-6e6fdea4d14d
-- 2f102269-659e-481d-b87c-1999cff970ec
-- 46a25637-1044-445e-a7ce-7fd9f70d8ece
-- 2ebd0156-6762-4bf5-aab0-b7ffa21d03fa
-- 16b3f165-4d16-47fe-aebe-8aa8fdaf7e4d
-- 4f7d8b57-6db2-4c1a-8f4d-0f8f50552d1d
+- 8f0f87a0-7a42-4d45-9f95-e4ac8f6d7a01
+- a6adf0b8-7dd5-42b0-8a56-df6ba0f2b002
+- 3e54ac2d-ec33-4f0c-a910-d3214f5f3003
+- c2d463f4-71cf-4482-97bb-7a4933c3f004
+- 5a6cc1de-0b90-4a40-a634-4a9dc6e7b005
+- b4bf3df3-3d67-4dd0-8ca3-6e87a4ce3006
+- 1c4bbdf2-4ad9-4de3-8898-4f1c593ec007
+- e55a7b9f-2cfa-4550-aa9b-b9d981c59008
+- 7d09d604-5202-412b-a933-c2663f4b6009
+- 9a7c1551-2035-45d2-9340-2b73c352d010
 adversary_id: c4e5a9b0-1d8a-4bb8-a9e6-2c8f3d7b6a41

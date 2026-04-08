@@ -1,0 +1,119 @@
+- id: 8f0f87a0-7a42-4d45-9f95-e4ac8f6d7a01
+  name: WSL Whoami Discovery
+  description: Identify the active account from the WSL shell.
+  tactic: discovery
+  technique:
+    attack_id: T1033
+    name: System Owner/User Discovery
+  platforms:
+    linux:
+      sh:
+        command: whoami
+
+- id: a6adf0b8-7dd5-42b0-8a56-df6ba0f2b002
+  name: WSL Hostname Discovery
+  description: Identify the host name from the WSL shell.
+  tactic: discovery
+  technique:
+    attack_id: T1082
+    name: System Information Discovery
+  platforms:
+    linux:
+      sh:
+        command: hostname
+
+- id: 3e54ac2d-ec33-4f0c-a910-d3214f5f3003
+  name: WSL Kernel Discovery
+  description: Collect kernel and platform details from the WSL shell.
+  tactic: discovery
+  technique:
+    attack_id: T1082
+    name: System Information Discovery
+  platforms:
+    linux:
+      sh:
+        command: uname -a
+
+- id: c2d463f4-71cf-4482-97bb-7a4933c3f004
+  name: WSL Identity Detail Discovery
+  description: Enumerate UID, GID, and group membership details.
+  tactic: discovery
+  technique:
+    attack_id: T1033
+    name: System Owner/User Discovery
+  platforms:
+    linux:
+      sh:
+        command: id
+
+- id: 5a6cc1de-0b90-4a40-a634-4a9dc6e7b005
+  name: WSL Working Directory Discovery
+  description: Identify the current working directory used by the operator.
+  tactic: discovery
+  technique:
+    attack_id: T1083
+    name: File and Directory Discovery
+  platforms:
+    linux:
+      sh:
+        command: pwd
+
+- id: b4bf3df3-3d67-4dd0-8ca3-6e87a4ce3006
+  name: WSL Directory Listing Discovery
+  description: Review the contents of the current directory from WSL.
+  tactic: discovery
+  technique:
+    attack_id: T1083
+    name: File and Directory Discovery
+  platforms:
+    linux:
+      sh:
+        command: ls -la
+
+- id: 1c4bbdf2-4ad9-4de3-8898-4f1c593ec007
+  name: WSL Process Discovery
+  description: Enumerate running processes from WSL.
+  tactic: discovery
+  technique:
+    attack_id: T1057
+    name: Process Discovery
+  platforms:
+    linux:
+      sh:
+        command: ps aux
+
+- id: e55a7b9f-2cfa-4550-aa9b-b9d981c59008
+  name: WSL Network Service Discovery
+  description: List listening and connected network sockets from WSL.
+  tactic: discovery
+  technique:
+    attack_id: T1049
+    name: System Network Connections Discovery
+  platforms:
+    linux:
+      sh:
+        command: ss -tulpen 2>/dev/null || ss -tuln
+
+- id: 7d09d604-5202-412b-a933-c2663f4b6009
+  name: WSL Network Interface Discovery
+  description: Enumerate network interface details from WSL.
+  tactic: discovery
+  technique:
+    attack_id: T1016
+    name: System Network Configuration Discovery
+  platforms:
+    linux:
+      sh:
+        command: ip addr || ifconfig
+
+- id: 9a7c1551-2035-45d2-9340-2b73c352d010
+  name: WSL Local Account Review
+  description: Review a bounded sample of local account entries for lab-safe discovery.
+  tactic: discovery
+  technique:
+    attack_id: T1087.001
+    name: Local Account
+  platforms:
+    linux:
+      sh:
+        command: head -n 10 /etc/passwd
